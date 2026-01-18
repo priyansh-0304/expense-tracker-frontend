@@ -16,8 +16,20 @@ export default function App() {
   const [editingExpense, setEditingExpense] = useState(null);
 
   // ✅ NEW: FILTER + SORT STATE
-  const [filterCategory, setFilterCategory] = useState("ALL");
-  const [sortBy, setSortBy] = useState("DATE_DESC");
+  const [filterCategory, setFilterCategory] = useState(() =>
+    localStorage.getItem("filterCategory") || "ALL"
+  );
+  const [sortBy, setSortBy] = useState(() =>
+    localStorage.getItem("sortBy") || "DATE_DESC"
+  );
+
+  useEffect(() => {
+    localStorage.setItem("filterCategory", filterCategory);
+  }, [filterCategory]);
+
+  useEffect(() => {
+    localStorage.setItem("sortBy", sortBy);
+  }, [sortBy]);
 
   // ---------------- AUTH CHECK ----------------
   useEffect(() => {

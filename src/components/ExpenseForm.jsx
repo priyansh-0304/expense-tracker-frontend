@@ -13,10 +13,10 @@ export default function ExpenseForm({ onAddExpense, categories }) {
     if (!amount || !description) return;
 
     onAddExpense({
+      title: description,
       amount: parseFloat(amount),
       category,
-      description,
-      date,
+      date: new Date(date).toISOString().split("T")[0],
     });
 
     setAmount('');

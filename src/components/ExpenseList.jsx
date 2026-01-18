@@ -8,7 +8,11 @@ import ExpenseItem from "./ExpenseItem";
   - Switched to default import for ExpenseItem
 */
 
-export default function ExpenseList({ expenses, onDeleteExpense }) {
+export default function ExpenseList({
+  expenses,
+  onDeleteExpense,
+  onEditExpense, // ✅ added
+}) {
   if (!expenses || expenses.length === 0) {
     return (
       <div className="text-center py-12">
@@ -26,6 +30,7 @@ export default function ExpenseList({ expenses, onDeleteExpense }) {
           key={expense.id}
           expense={expense}
           onDelete={onDeleteExpense}
+          onEdit={onEditExpense} // ✅ added
         />
       ))}
     </div>

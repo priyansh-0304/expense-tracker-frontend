@@ -9,14 +9,6 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 
-/*
-  JSX RULES APPLIED:
-  - Removed interface
-  - Removed Expense type import
-  - Removed Record<> typings
-  - Props are plain JS
-*/
-
 const categoryIcons = {
   Food: <Utensils className="w-5 h-5" />,
   Transport: <Car className="w-5 h-5" />,
@@ -37,7 +29,7 @@ const categoryColors = {
   Other: "bg-gray-100 text-gray-600",
 };
 
-export default function ExpenseItem({ expense, onDelete }) {
+export default function ExpenseItem({ expense, onDelete, onEdit }) {
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -46,6 +38,12 @@ export default function ExpenseItem({ expense, onDelete }) {
       year: "numeric",
     });
   };
+
+  // SINGLE SOURCE OF TRUTH FOR DISPLAY NAME
+  const title =
+    expense.name ||
+    expense.description ||
+    "Unnamed expense";
 
   return (
     <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 rounded-xl hover:shadow-md transition-all group hover:border-purple-200">
@@ -58,9 +56,10 @@ export default function ExpenseItem({ expense, onDelete }) {
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900">
-          {expense.description}
+        <p className="font-medium text-gray-900 truncate">
+          {title}
         </p>
+
         <div className="flex items-center gap-2 mt-1">
           <span className="text-sm text-gray-500">
             {expense.category}
@@ -74,9 +73,18 @@ export default function ExpenseItem({ expense, onDelete }) {
 
       <div className="flex items-center gap-3">
         <span className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-          ${expense.amount.toFixed(2)}
+          ${Number(expense.amount).toFixed(2)}
         </span>
 
+        {/* EDIT */}
+        <button
+          onClick={() => onEdit(expense)}
+          className="px-3 py-1 text-sm rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all opacity-0 group-hover:opacity-100"
+        >
+          Edit
+        </button>
+
+        {/* DELETE */}
         <button
           onClick={() => onDelete(expense.id)}
           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"

@@ -53,15 +53,20 @@ export default function App() {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
   };
 
+  // ✅ FIXED UPDATE (THIS WAS THE BUG)
   const updateExpense = async (expense) => {
-    const res = await api.put(`/expenses/${expense.id}`, {
+    const payload = {
       ...expense,
+      title: expense.title, // ✅ DO NOT USE description
       date: new Date(expense.date).toISOString().split("T")[0],
-    });
+    };
+
+    const res = await api.put(`/expenses/${expense.id}`, payload);
 
     setExpenses((prev) =>
       prev.map((e) => (e.id === expense.id ? res.data : e))
     );
+
     setEditingExpense(null);
   };
 
@@ -89,7 +94,7 @@ export default function App() {
 
   // ---------------- CONSTANTS ----------------
   const categories = [
-    "Food",
+    "Food & Drinks",
     "Transport",
     "Shopping",
     "Bills",
@@ -103,10 +108,8 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
         <header className="bg-white/80 backdrop-blur rounded-2xl p-6 shadow flex items-center justify-between">
-          {/* Left: Icon + Title */}
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow">
-              {/* Wallet Icon (no new dependency) */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="w-6 h-6 text-white"
@@ -135,28 +138,6 @@ export default function App() {
               <p className="text-gray-600">Manage your spending wisely</p>
             </div>
           </div>
-
-          {/* Right: Export Button */}
-          <button
-            onClick={() => {
-              /* wire CSV logic later */
-            }}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-medium shadow transition"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-5 h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7 10l5 5 5-5" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15V3" />
-            </svg>
-            Export CSV
-          </button>
         </header>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -178,6 +159,7 @@ export default function App() {
 
         {expenses.length > 0 && <ExpenseCharts expenses={expenses} />}
       </div>
+
       {editingExpense && (
         <EditExpenseModal
           expense={editingExpense}

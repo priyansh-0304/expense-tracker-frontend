@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 const categoryIcons = {
+  "Food & Drinks": <Utensils className="w-5 h-5" />,
   Food: <Utensils className="w-5 h-5" />,
   Transport: <Car className="w-5 h-5" />,
   Shopping: <ShoppingBag className="w-5 h-5" />,
@@ -20,6 +21,7 @@ const categoryIcons = {
 };
 
 const categoryColors = {
+  "Food & Drinks": "bg-orange-100 text-orange-600",
   Food: "bg-orange-100 text-orange-600",
   Transport: "bg-blue-100 text-blue-600",
   Shopping: "bg-pink-100 text-pink-600",
@@ -39,12 +41,6 @@ export default function ExpenseItem({ expense, onDelete, onEdit }) {
     });
   };
 
-  // SINGLE SOURCE OF TRUTH FOR DISPLAY NAME
-  const title =
-    expense.name ||
-    expense.description ||
-    "Unnamed expense";
-
   return (
     <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 rounded-xl hover:shadow-md transition-all group hover:border-purple-200">
       <div
@@ -56,14 +52,13 @@ export default function ExpenseItem({ expense, onDelete, onEdit }) {
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900 truncate">
-          {title}
+        {/* ✅ FINAL FIX */}
+        <p className="font-medium text-gray-900">
+          {expense.title}
         </p>
 
         <div className="flex items-center gap-2 mt-1">
-          <span className="text-sm text-gray-500">
-            {expense.category}
-          </span>
+          <span className="text-sm text-gray-500">{expense.category}</span>
           <span className="text-gray-300">•</span>
           <span className="text-sm text-gray-500">
             {formatDate(expense.date)}
@@ -73,18 +68,16 @@ export default function ExpenseItem({ expense, onDelete, onEdit }) {
 
       <div className="flex items-center gap-3">
         <span className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-          ${Number(expense.amount).toFixed(2)}
+          ₹{expense.amount.toFixed(2)}
         </span>
 
-        {/* EDIT */}
         <button
-          onClick={() => onEdit(expense)}
+          onClick={() => onEdit && onEdit(expense)}
           className="px-3 py-1 text-sm rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 transition-all opacity-0 group-hover:opacity-100"
         >
           Edit
         </button>
 
-        {/* DELETE */}
         <button
           onClick={() => onDelete(expense.id)}
           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"

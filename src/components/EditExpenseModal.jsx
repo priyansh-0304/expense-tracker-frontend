@@ -1,12 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function EditExpenseModal({ expense, onClose, onSave }) {
   const [form, setForm] = useState({
-    description: expense.description,
-    amount: expense.amount,
-    category: expense.category,
-    date: expense.date,
+    title: "",
+    amount: "",
+    category: "",
+    date: "",
   });
+
+  useEffect(() => {
+    if (!expense) return;
+
+    setForm({
+      title: expense.title || "",
+      amount: expense.amount || "",
+      category: expense.category || "",
+      date: expense.date
+        ? new Date(expense.date).toISOString().split("T")[0]
+        : "",
+    });
+  }, [expense]);
 
   const handleChange = (e) => {
     setForm({
@@ -20,10 +33,13 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
 
     await onSave({
       ...expense,
-      ...form,
+      title: form.title,
       amount: Number(form.amount),
+      category: form.category,
       date: new Date(form.date).toISOString().split("T")[0],
     });
+
+    onClose(); // 🔴 THIS WAS MISSING
   };
 
   return (
@@ -33,11 +49,11 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
-            name="description"
-            value={form.description}
+            name="title"
+            value={form.title}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-lg"
-            placeholder="Description"
+            placeholder="Expense name"
             required
           />
 
@@ -57,7 +73,7 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
             className="w-full px-3 py-2 border rounded-lg"
           >
             {[
-              "Food",
+              "Food & Drinks",
               "Transport",
               "Shopping",
               "Bills",

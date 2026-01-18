@@ -15,6 +15,7 @@ import {
 import { useState } from 'react';
 import { PieChartIcon, BarChart3, TrendingUp } from 'lucide-react';
 
+/* ---- CATEGORY COLORS ---- */
 const COLORS = {
   Food: '#f97316',
   Transport: '#3b82f6',
@@ -25,6 +26,12 @@ const COLORS = {
   Other: '#6b7280',
 };
 
+/* ---- CATEGORY NORMALIZER ---- */
+const normalizeCategory = (category) => {
+  if (category === 'Food & Drinks') return 'Food';
+  return category || 'Other';
+};
+
 export default function ExpenseCharts({ expenses }) {
   const [chartType, setChartType] = useState('pie');
 
@@ -32,9 +39,10 @@ export default function ExpenseCharts({ expenses }) {
     return null;
   }
 
-  // ---- CATEGORY TOTALS ----
+  /* ---- CATEGORY TOTALS ---- */
   const categoryTotals = expenses.reduce((acc, expense) => {
-    acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
+    const category = normalizeCategory(expense.category);
+    acc[category] = (acc[category] || 0) + expense.amount;
     return acc;
   }, {});
 
@@ -50,7 +58,7 @@ export default function ExpenseCharts({ expenses }) {
     }))
     .sort((a, b) => b.amount - a.amount);
 
-  // ---- DAILY TREND ----
+  /* ---- DAILY TREND ---- */
   const dailyExpenses = expenses.reduce((acc, expense) => {
     const date = expense.date;
     acc[date] = (acc[date] || 0) + expense.amount;
@@ -133,7 +141,7 @@ export default function ExpenseCharts({ expenses }) {
                   />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => `$${v}`} />
+              <Tooltip formatter={(v) => `₹${v}`} />
             </PieChart>
           </ResponsiveContainer>
         </>
@@ -147,7 +155,7 @@ export default function ExpenseCharts({ expenses }) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="category" />
               <YAxis />
-              <Tooltip formatter={(v) => `$${v}`} />
+              <Tooltip formatter={(v) => `₹${v}`} />
               <Bar dataKey="amount">
                 {barData.map((entry, index) => (
                   <Cell
@@ -171,7 +179,7 @@ export default function ExpenseCharts({ expenses }) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip formatter={(v) => `$${v}`} />
+              <Tooltip formatter={(v) => `₹${v}`} />
               <Line
                 type="monotone"
                 dataKey="amount"

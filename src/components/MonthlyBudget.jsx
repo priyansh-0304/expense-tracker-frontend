@@ -87,8 +87,8 @@ export default function MonthlyBudget({ expenses = [] }) {
 
               {/* STATS */}
               <div className="flex justify-between text-xs text-gray-600 mb-1">
-                <span>Spent: ₹{spent.toFixed(0)}</span>
-                <span>Limit: ₹{limit}</span>
+                <span>Spent: ${spent.toFixed(0)}</span>
+                <span>Limit: ${limit}</span>
               </div>
 
               {/* PROGRESS BAR */}
@@ -108,7 +108,7 @@ export default function MonthlyBudget({ expenses = [] }) {
               {/* WARNING */}
               {spent > limit && limit > 0 && (
                 <p className="text-xs text-red-600 mt-1">
-                  Over budget by ₹{(spent - limit).toFixed(0)}
+                  Over budget by ${(spent - limit).toFixed(0)}
                 </p>
               )}
             </div>

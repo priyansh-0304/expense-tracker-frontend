@@ -15,6 +15,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState(null);
 
+  // ✅ NEW: FILTER + SORT STATE
+  const [filterCategory, setFilterCategory] = useState("ALL");
+  const [sortBy, setSortBy] = useState("DATE_DESC");
+
   // ---------------- AUTH CHECK ----------------
   useEffect(() => {
     const token = localStorage.getItem("jwt");
@@ -53,11 +57,10 @@ export default function App() {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
   };
 
-  // ✅ FIXED UPDATE (THIS WAS THE BUG)
   const updateExpense = async (expense) => {
     const payload = {
       ...expense,
-      title: expense.title, // ✅ DO NOT USE description
+      title: expense.title,
       date: new Date(expense.date).toISOString().split("T")[0],
     };
 
@@ -69,6 +72,19 @@ export default function App() {
 
     setEditingExpense(null);
   };
+
+  // ---------------- FILTER + SORT LOGIC (NEW) ----------------
+  const visibleExpenses = [...expenses]
+    .filter((e) =>
+      filterCategory === "ALL" ? true : e.category === filterCategory
+    )
+    .sort((a, b) => {
+      if (sortBy === "DATE_DESC") return new Date(b.date) - new Date(a.date);
+      if (sortBy === "DATE_ASC") return new Date(a.date) - new Date(b.date);
+      if (sortBy === "AMOUNT_DESC") return b.amount - a.amount;
+      if (sortBy === "AMOUNT_ASC") return a.amount - b.amount;
+      return 0;
+    });
 
   // ---------------- UI STATES ----------------
   if (loading) {
@@ -103,10 +119,41 @@ export default function App() {
     "Other",
   ];
 
+  const exportCSV = () => {
+    if (!expenses || expenses.length === 0) {
+      alert("No expenses to export");
+      return;
+    }
+
+    const headers = ["Title", "Category", "Amount", "Date"];
+    const rows = expenses.map((e) => [
+      `"${e.title || ""}"`,
+      `"${e.category || ""}"`,
+      e.amount,
+      e.date,
+    ]);
+
+    const csv =
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `expenses_${new Date()
+      .toISOString()
+      .split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // ---------------- RENDER ----------------
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+        {/* HEADER */}
         <header className="bg-white/80 backdrop-blur rounded-2xl p-6 shadow flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow">
@@ -138,6 +185,13 @@ export default function App() {
               <p className="text-gray-600">Manage your spending wisely</p>
             </div>
           </div>
+
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-medium shadow transition"
+          >
+            Export CSV
+          </button>
         </header>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -149,8 +203,34 @@ export default function App() {
 
           <div className="lg:col-span-2 bg-white/80 rounded-2xl p-6 shadow">
             <h2 className="text-xl font-semibold mb-4">Recent Expenses</h2>
+
+            {/* ✅ FILTER + SORT UI */}
+            <div className="flex flex-wrap gap-4 mb-4">
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="px-3 py-2 border rounded-lg text-sm"
+              >
+                <option value="ALL">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-3 py-2 border rounded-lg text-sm"
+              >
+                <option value="DATE_DESC">Newest first</option>
+                <option value="DATE_ASC">Oldest first</option>
+                <option value="AMOUNT_DESC">Amount: High → Low</option>
+                <option value="AMOUNT_ASC">Amount: Low → High</option>
+              </select>
+            </div>
+
             <ExpenseList
-              expenses={expenses}
+              expenses={visibleExpenses}
               onDeleteExpense={deleteExpense}
               onEditExpense={(expense) => setEditingExpense(expense)}
             />

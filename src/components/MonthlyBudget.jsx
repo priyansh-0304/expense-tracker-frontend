@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 
+/* ---------- CATEGORY NORMALIZATION ---------- */
+const normalizeCategory = (category) => {
+  if (category === "Food") return "Food & Drinks";
+  return category;
+};
+
 const DEFAULT_BUDGETS = {
-  Food: 5000,
+  "Food & Drinks": 5000,
   Transport: 2000,
   Shopping: 3000,
   Bills: 4000,
@@ -11,11 +17,21 @@ const DEFAULT_BUDGETS = {
 };
 
 export default function MonthlyBudget({ expenses = [] }) {
-  // ---------- LOAD FROM LOCAL STORAGE ONCE ----------
+  // ---------- LOAD + MIGRATE FROM LOCAL STORAGE ----------
   const [budgets, setBudgets] = useState(() => {
     try {
       const stored = localStorage.getItem("monthlyBudgets");
-      return stored ? JSON.parse(stored) : DEFAULT_BUDGETS;
+      if (!stored) return DEFAULT_BUDGETS;
+
+      const parsed = JSON.parse(stored);
+
+      // 🔧 MIGRATION: Food -> Food & Drinks
+      if (parsed.Food && !parsed["Food & Drinks"]) {
+        parsed["Food & Drinks"] = parsed.Food;
+        delete parsed.Food;
+      }
+
+      return { ...DEFAULT_BUDGETS, ...parsed };
     } catch {
       return DEFAULT_BUDGETS;
     }
@@ -31,19 +47,19 @@ export default function MonthlyBudget({ expenses = [] }) {
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
 
-  // ---------- SAFE EXPENSE REDUCE ----------
+  // ---------- SPENT BY CATEGORY ----------
   const spentByCategory = (Array.isArray(expenses) ? expenses : []).reduce(
     (acc, expense) => {
       if (!expense?.date || !expense?.category) return acc;
 
       const d = new Date(expense.date);
-      if (
-        d.getMonth() === currentMonth &&
-        d.getFullYear() === currentYear
-      ) {
-        acc[expense.category] =
-          (acc[expense.category] || 0) + Number(expense.amount || 0);
+      if (d.getMonth() !== currentMonth || d.getFullYear() !== currentYear) {
+        return acc;
       }
+
+      const category = normalizeCategory(expense.category);
+      acc[category] = (acc[category] || 0) + Number(expense.amount || 0);
+
       return acc;
     },
     {}
@@ -70,10 +86,8 @@ export default function MonthlyBudget({ expenses = [] }) {
 
           return (
             <div key={category}>
-              {/* HEADER */}
               <div className="flex justify-between items-center mb-1">
                 <span className="font-medium">{category}</span>
-
                 <input
                   type="number"
                   min="0"
@@ -85,16 +99,14 @@ export default function MonthlyBudget({ expenses = [] }) {
                 />
               </div>
 
-              {/* STATS */}
               <div className="flex justify-between text-xs text-gray-600 mb-1">
                 <span>Spent: ${spent.toFixed(0)}</span>
                 <span>Limit: ${limit}</span>
               </div>
 
-              {/* PROGRESS BAR */}
               <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                 <div
-                  className={`h-3 transition-all rounded-full ${
+                  className={`h-3 rounded-full transition-all ${
                     percent < 70
                       ? "bg-green-500"
                       : percent < 100
@@ -105,7 +117,6 @@ export default function MonthlyBudget({ expenses = [] }) {
                 />
               </div>
 
-              {/* WARNING */}
               {spent > limit && limit > 0 && (
                 <p className="text-xs text-red-600 mt-1">
                   Over budget by ${(spent - limit).toFixed(0)}

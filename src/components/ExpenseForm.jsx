@@ -70,7 +70,7 @@ export default function ExpenseForm({ onAddExpense, categories }) {
 
         <div>
           <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-            Description
+            Title
           </label>
           <input
             type="text"

@@ -68,7 +68,7 @@ export default function ExpenseItem({ expense, onDelete, onEdit }) {
 
       <div className="flex items-center gap-3">
         <span className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-          ₹{expense.amount.toFixed(2)}
+          ${expense.amount.toFixed(2)}
         </span>
 
         <button

@@ -15,7 +15,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState(null);
 
-  // FILTER + SORT
+  // ---------------- FILTER + SORT ----------------
   const [filterCategory, setFilterCategory] = useState(
     () => localStorage.getItem("filterCategory") || "ALL"
   );
@@ -23,7 +23,7 @@ export default function App() {
     () => localStorage.getItem("sortBy") || "DATE_DESC"
   );
 
-  // PAGINATION (✅ NEW)
+  // ---------------- PAGINATION ----------------
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 5;
 
@@ -35,12 +35,11 @@ export default function App() {
     localStorage.setItem("sortBy", sortBy);
   }, [sortBy]);
 
-  // ---------------- BACKEND VERIFICATION ----------------
+  // ---------------- BACKEND CHECK ----------------
   const verifyBackend = async () => {
     await api.get("/expenses");
   };
 
-  // ---------------- INITIAL AUTH CHECK ----------------
   useEffect(() => {
     const token = localStorage.getItem("jwt");
 
@@ -63,7 +62,7 @@ export default function App() {
     if (authenticated) fetchExpenses();
   }, [authenticated]);
 
-  // ---------------- API CALLS ----------------
+  // ---------------- API ----------------
   const fetchExpenses = async () => {
     const res = await api.get("/expenses");
     setExpenses(res.data);
@@ -87,7 +86,7 @@ export default function App() {
     setEditingExpense(null);
   };
 
-  // ---------------- LOGOUT (UNCHANGED) ----------------
+  // ---------------- LOGOUT ----------------
   const handleLogout = () => {
     localStorage.removeItem("jwt");
     setAuthenticated(false);
@@ -95,7 +94,7 @@ export default function App() {
     setEditingExpense(null);
   };
 
-  // ---------------- FILTER + SORT ----------------
+  // ---------------- FILTER + SORT LOGIC ----------------
   const visibleExpenses = [...expenses]
     .filter((e) =>
       filterCategory === "ALL" ? true : e.category === filterCategory
@@ -108,7 +107,7 @@ export default function App() {
       return 0;
     });
 
-  // PAGINATED DATA (✅ NEW)
+  // ---------------- PAGINATION LOGIC ----------------
   const totalPages = Math.ceil(visibleExpenses.length / PAGE_SIZE);
   const paginatedExpenses = visibleExpenses.slice(
     page * PAGE_SIZE,
@@ -151,7 +150,7 @@ export default function App() {
     "Other",
   ];
 
-  // ---------------- EXPORT CSV (UNCHANGED) ----------------
+  // ---------------- EXPORT CSV ----------------
   const exportCSV = () => {
     if (!expenses.length) return;
 
@@ -216,13 +215,45 @@ export default function App() {
           <div className="lg:col-span-2 bg-white/80 rounded-2xl p-6 shadow">
             <h2 className="text-xl font-semibold mb-4">Recent Expenses</h2>
 
+            {/* ✅ FILTER + SORT UI (ONLY ADDITION) */}
+            <div className="flex flex-wrap gap-3 mb-4">
+              <select
+                value={filterCategory}
+                onChange={(e) => {
+                  setPage(0);
+                  setFilterCategory(e.target.value);
+                }}
+                className="px-3 py-2 border rounded-lg text-sm"
+              >
+                <option value="ALL">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setPage(0);
+                  setSortBy(e.target.value);
+                }}
+                className="px-3 py-2 border rounded-lg text-sm"
+              >
+                <option value="DATE_DESC">Newest first</option>
+                <option value="DATE_ASC">Oldest first</option>
+                <option value="AMOUNT_DESC">Highest amount</option>
+                <option value="AMOUNT_ASC">Lowest amount</option>
+              </select>
+            </div>
+
             <ExpenseList
               expenses={paginatedExpenses}
               onDeleteExpense={deleteExpense}
               onEditExpense={(e) => setEditingExpense(e)}
             />
 
-            {/* PAGINATION UI (✅ NEW) */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 mt-6">
                 <button

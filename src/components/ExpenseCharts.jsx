@@ -141,7 +141,7 @@ export default function ExpenseCharts({ expenses }) {
                   />
                 ))}
               </Pie>
-              <Tooltip formatter={(v) => `₹${v}`} />
+              <Tooltip formatter={(v) => `$${v}`} />
             </PieChart>
           </ResponsiveContainer>
         </>
@@ -155,7 +155,7 @@ export default function ExpenseCharts({ expenses }) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="category" />
               <YAxis />
-              <Tooltip formatter={(v) => `₹${v}`} />
+              <Tooltip formatter={(v) => `$${v}`} />
               <Bar dataKey="amount">
                 {barData.map((entry, index) => (
                   <Cell
@@ -179,7 +179,7 @@ export default function ExpenseCharts({ expenses }) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
-              <Tooltip formatter={(v) => `₹${v}`} />
+              <Tooltip formatter={(v) => `$${v}`} />
               <Line
                 type="monotone"
                 dataKey="amount"

@@ -8,9 +8,12 @@ import ExpenseCharts from "./components/ExpenseCharts";
 import MonthlyBudget from "./components/MonthlyBudget";
 import Login from "./pages/Login";
 import EditExpenseModal from "./components/EditExpenseModal";
+import ExpenseInsights from "./components/ExpenseInsights";
 
 export default function App() {
   const [expenses, setExpenses] = useState([]);
+  const [monthlyExpenses, setMonthlyExpenses] = useState([]);
+  const [totalPages, setTotalPages] = useState(0);
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState(null);
@@ -25,7 +28,8 @@ export default function App() {
 
   // ---------------- PAGINATION ----------------
   const [page, setPage] = useState(0);
-  const PAGE_SIZE = 5;
+  const PAGE_SIZE = 10;
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     localStorage.setItem("filterCategory", filterCategory);
@@ -37,7 +41,7 @@ export default function App() {
 
   // ---------------- BACKEND CHECK ----------------
   const verifyBackend = async () => {
-    await api.get("/expenses");
+    await api.get("/actuator/health");
   };
 
   useEffect(() => {
@@ -59,30 +63,87 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (authenticated) fetchExpenses();
-  }, [authenticated]);
+    if (authenticated) {
+      fetchExpenses();          // paginated
+      fetchMonthlyExpenses();   // full dataset for analytics
+    }
+  }, [authenticated, page, filterCategory, sortBy]);
 
   // ---------------- API ----------------
   const fetchExpenses = async () => {
-    const res = await api.get("/expenses");
-    setExpenses(res.data);
+    let sortField = "createdAt";
+    let sortDir = "desc";
+
+    if (sortBy === "DATE_ASC") {
+      sortField = "createdAt";
+      sortDir = "asc";
+    } else if (sortBy === "AMOUNT_DESC") {
+      sortField = "amount";
+      sortDir = "desc";
+    } else if (sortBy === "AMOUNT_ASC") {
+      sortField = "amount";
+      sortDir = "asc";
+    }
+
+    const res = await api.get("/expenses/filter", {
+      params: {
+        page,
+        size: PAGE_SIZE,
+        category: filterCategory === "ALL" ? null : filterCategory,
+        sortBy: sortField,
+        sortDir,
+      },
+    });
+
+    setExpenses(res.data.content || []);
+    setTotalPages(res.data.totalPages || 0);
+  };
+
+  const fetchMonthlyExpenses = async () => {
+    const res = await api.get("/expenses", {
+      params: {
+        page: 0,
+        size: 1000, // big enough to cover a month
+        sortBy: "createdAt",
+        sortDir: "desc",
+      },
+    });
+
+    setMonthlyExpenses(res.data.content || []);
   };
 
   const addExpense = async (expense) => {
-    const res = await api.post("/expenses", expense);
-    setExpenses((prev) => [res.data, ...prev]);
+    try {
+      const res = await api.post("/expenses", expense); // 👈 api, NOT axios
+
+      fetchExpenses();
+      setMonthlyExpenses((prev) => [res.data, ...prev]);
+    } catch (err) {
+      console.error("Add expense failed:", err);
+    }
   };
 
   const deleteExpense = async (id) => {
     await api.delete(`/expenses/${id}`);
-    setExpenses((prev) => prev.filter((e) => e.id !== id));
+
+    fetchExpenses();
+
+    // 🔹 keep analytics in sync
+    setMonthlyExpenses((prev) => prev.filter((e) => e.id !== id));
   };
 
   const updateExpense = async (expense) => {
     const res = await api.put(`/expenses/${expense.id}`, expense);
+
     setExpenses((prev) =>
       prev.map((e) => (e.id === expense.id ? res.data : e))
     );
+
+    // 🔹 update analytics data too
+    setMonthlyExpenses((prev) =>
+      prev.map((e) => (e.id === expense.id ? res.data : e))
+    );
+
     setEditingExpense(null);
   };
 
@@ -93,26 +154,6 @@ export default function App() {
     setExpenses([]);
     setEditingExpense(null);
   };
-
-  // ---------------- FILTER + SORT LOGIC ----------------
-  const visibleExpenses = [...expenses]
-    .filter((e) =>
-      filterCategory === "ALL" ? true : e.category === filterCategory
-    )
-    .sort((a, b) => {
-      if (sortBy === "DATE_DESC") return new Date(b.date) - new Date(a.date);
-      if (sortBy === "DATE_ASC") return new Date(a.date) - new Date(b.date);
-      if (sortBy === "AMOUNT_DESC") return b.amount - a.amount;
-      if (sortBy === "AMOUNT_ASC") return a.amount - b.amount;
-      return 0;
-    });
-
-  // ---------------- PAGINATION LOGIC ----------------
-  const totalPages = Math.ceil(visibleExpenses.length / PAGE_SIZE);
-  const paginatedExpenses = visibleExpenses.slice(
-    page * PAGE_SIZE,
-    page * PAGE_SIZE + PAGE_SIZE
-  );
 
   // ---------------- UI STATES ----------------
   if (loading) {
@@ -175,8 +216,10 @@ export default function App() {
       .split("T")[0]}.csv`;
     link.click();
   };
-
   // ---------------- RENDER ----------------
+  const searchedExpenses = expenses.filter((e) =>
+    e.title?.toLowerCase().includes(search.toLowerCase())
+  );
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
@@ -213,10 +256,21 @@ export default function App() {
           </div>
 
           <div className="lg:col-span-2 bg-white/80 rounded-2xl p-6 shadow">
-            <h2 className="text-xl font-semibold mb-4">Recent Expenses</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Recent Expenses</h2>
+              <input
+                type="text"
+                placeholder="Search expenses..."
+                value={search}
+                onChange={(e) => {
+                  setPage(0);
+                  setSearch(e.target.value);
+                }}
+                className="w-64 px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
 
-            {/* ✅ FILTER + SORT UI (ONLY ADDITION) */}
-            <div className="flex flex-wrap gap-3 mb-4">
+            <div className="flex gap-3 mb-4">
               <select
                 value={filterCategory}
                 onChange={(e) => {
@@ -249,11 +303,11 @@ export default function App() {
             </div>
 
             <ExpenseList
-              expenses={paginatedExpenses}
+              expenses={searchedExpenses}
               onDeleteExpense={deleteExpense}
               onEditExpense={(e) => setEditingExpense(e)}
             />
-
+            <ExpenseInsights expenses={monthlyExpenses} />
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 mt-6">
                 <button
@@ -280,7 +334,9 @@ export default function App() {
           </div>
         </div>
 
-        {expenses.length > 0 && <ExpenseCharts expenses={expenses} />}
+        {monthlyExpenses.length > 0 && (
+          <ExpenseCharts expenses={monthlyExpenses} />
+        )}
       </div>
 
       {editingExpense && (

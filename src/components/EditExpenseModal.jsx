@@ -8,12 +8,13 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
     date: "",
   });
 
+  // Populate form when expense changes
   useEffect(() => {
     if (!expense) return;
 
     setForm({
       title: expense.title || "",
-      amount: expense.amount || "",
+      amount: expense.amount ?? "",
       category: expense.category || "",
       date: expense.date
         ? new Date(expense.date).toISOString().split("T")[0]
@@ -22,24 +23,27 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
   }, [expense]);
 
   const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     await onSave({
-      ...expense,
-      title: form.title,
-      amount: Number(form.amount),
-      category: form.category,
-      date: new Date(form.date).toISOString().split("T")[0],
+        id: expense.id,
+        title: form.title,
+        amount: Number(form.amount),
+        category: form.category,
+        paymentMethod: expense.paymentMethod || "Cash",
+        notes: expense.notes || "",
+        date: form.date,
     });
 
-    onClose(); // 🔴 THIS WAS MISSING
+    onClose();
   };
 
   return (
@@ -48,6 +52,7 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
         <h2 className="text-xl font-semibold mb-4">Edit Expense</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Title */}
           <input
             name="title"
             value={form.title}
@@ -57,20 +62,25 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
             required
           />
 
+          {/* Amount */}
           <input
             name="amount"
             type="number"
             value={form.amount}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-lg"
+            min="0"
+            step="0.01"
             required
           />
 
+          {/* Category */}
           <select
             name="category"
             value={form.category}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-lg"
+            required
           >
             {[
               "Food & Drinks",
@@ -87,6 +97,7 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
             ))}
           </select>
 
+          {/* Date */}
           <input
             name="date"
             type="date"
@@ -96,6 +107,7 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
             required
           />
 
+          {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"

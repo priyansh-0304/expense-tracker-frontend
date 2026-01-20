@@ -21,20 +21,22 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Backend unreachable
+    // 🔴 DO NOT LOGOUT ON NORMAL ERRORS
     if (!error.response) {
-      console.error("Backend unreachable");
-      localStorage.removeItem("jwt");
-      window.location.href = "/";
+      console.error("Network / CORS error:", error);
       return Promise.reject(error);
     }
 
-    // Auth errors
-    if (error.response.status === 401 || error.response.status === 403) {
+    const status = error.response.status;
+
+    // 🔴 ONLY logout on REAL auth failures
+    if (status === 401) {
+      console.warn("JWT expired or invalid. Logging out.");
       localStorage.removeItem("jwt");
       window.location.href = "/";
     }
 
+    // 🔴 400 / 422 / 500 should NOT log out
     return Promise.reject(error);
   }
 );

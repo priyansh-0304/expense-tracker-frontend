@@ -52,14 +52,22 @@ export default function ExpenseItem({ expense, onDelete, onEdit }) {
       </div>
 
       <div className="flex-1 min-w-0">
-        {/* ✅ FINAL FIX */}
         <p className="font-medium text-gray-900">
           {expense.title}
         </p>
+
+        {/* 🔹 Payment Method */}
         {expense.paymentMethod && (
           <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
             {expense.paymentMethod}
           </span>
+        )}
+
+        {/* 🔹 Notes (NEW — minimal addition) */}
+        {expense.notes && (
+          <p className="text-sm text-gray-500 mt-1 truncate">
+            {expense.notes}
+          </p>
         )}
 
         <div className="flex items-center gap-2 mt-1">

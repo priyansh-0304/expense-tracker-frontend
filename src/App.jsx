@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import EditExpenseModal from "./components/EditExpenseModal";
 import ExpenseInsights from "./components/ExpenseInsights";
 
+
 export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [monthlyExpenses, setMonthlyExpenses] = useState([]);
@@ -17,6 +18,8 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
 
   // ---------------- FILTER + SORT ----------------
   const [filterCategory, setFilterCategory] = useState(
@@ -67,7 +70,7 @@ export default function App() {
       fetchExpenses();          // paginated
       fetchMonthlyExpenses();   // full dataset for analytics
     }
-  }, [authenticated, page, filterCategory, sortBy]);
+  }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
 
   // ---------------- API ----------------
   const fetchExpenses = async () => {
@@ -92,6 +95,8 @@ export default function App() {
         category: filterCategory === "ALL" ? null : filterCategory,
         sortBy: sortField,
         sortDir,
+        from: fromDate,
+        to: toDate,
       },
     });
 
@@ -99,13 +104,49 @@ export default function App() {
     setTotalPages(res.data.totalPages || 0);
   };
 
+  const getDateRange = (type) => {
+    const today = new Date();
+    let from = null;
+    let to = today;
+
+    switch (type) {
+      case "today":
+        from = today;
+        break;
+
+      case "week":
+        from = new Date();
+        from.setDate(today.getDate() - 6);
+        break;
+
+      case "month":
+        from = new Date(today.getFullYear(), today.getMonth(), 1);
+        break;
+
+      case "30days":
+        from = new Date();
+        from.setDate(today.getDate() - 29);
+        break;
+
+      default:
+        return { from: null, to: null };
+    }
+
+    return {
+      from: from.toISOString().split("T")[0],
+      to: to.toISOString().split("T")[0],
+    };
+  };
+
   const fetchMonthlyExpenses = async () => {
-    const res = await api.get("/expenses", {
+    const res = await api.get("/expenses/filter", {
       params: {
         page: 0,
         size: 1000, // big enough to cover a month
         sortBy: "createdAt",
         sortDir: "desc",
+        from: fromDate,
+        to: toDate,
       },
     });
 
@@ -251,7 +292,7 @@ export default function App() {
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="space-y-6">
             <ExpenseForm onAddExpense={addExpense} categories={categories} />
-            <MonthlyBudget expenses={expenses} />
+            <MonthlyBudget expenses={monthlyExpenses} />
             <ExpenseSummary expenses={expenses} />
           </div>
 
@@ -300,6 +341,39 @@ export default function App() {
                 <option value="AMOUNT_DESC">Highest amount</option>
                 <option value="AMOUNT_ASC">Lowest amount</option>
               </select>
+            </div>
+
+            <div className="flex gap-2 mb-4 flex-wrap">
+              {[
+                { label: "Today", key: "today" },
+                { label: "This Week", key: "week" },
+                { label: "This Month", key: "month" },
+                { label: "Last 30 Days", key: "30days" },
+              ].map(({ label, key }) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    const { from, to } = getDateRange(key);
+                    setFromDate(from);
+                    setToDate(to);
+                    setPage(0);
+                  }}
+                  className="px-3 py-1 rounded-lg text-sm bg-gray-100 hover:bg-purple-100"
+                >
+                  {label}
+                </button>
+              ))}
+
+              <button
+                onClick={() => {
+                  setFromDate(null);
+                  setToDate(null);
+                  setPage(0);
+                }}
+                className="px-3 py-1 rounded-lg text-sm bg-red-50 text-red-600"
+              >
+                Clear
+              </button>
             </div>
 
             <ExpenseList

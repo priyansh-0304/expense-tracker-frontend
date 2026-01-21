@@ -31,7 +31,13 @@ const categoryColors = {
   Other: "bg-gray-100 text-gray-600",
 };
 
-export default function ExpenseItem({ expense, onDelete, onEdit }) {
+export default function ExpenseItem({
+  expense,
+  onDelete,
+  onEdit,
+  isSelected,
+  onToggleSelect,
+}) {
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -43,6 +49,15 @@ export default function ExpenseItem({ expense, onDelete, onEdit }) {
 
   return (
     <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 rounded-xl hover:shadow-md transition-all group hover:border-purple-200">
+      {/* ✅ Checkbox */}
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={() => onToggleSelect(expense.id)}
+        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+      />
+
+      {/* Icon */}
       <div
         className={`p-3 rounded-xl shadow-sm ${
           categoryColors[expense.category] || categoryColors.Other
@@ -51,19 +66,18 @@ export default function ExpenseItem({ expense, onDelete, onEdit }) {
         {categoryIcons[expense.category] || categoryIcons.Other}
       </div>
 
+      {/* Main content */}
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900">
-          {expense.title}
-        </p>
+        <p className="font-medium text-gray-900">{expense.title}</p>
 
-        {/* 🔹 Payment Method */}
+        {/* Payment Method */}
         {expense.paymentMethod && (
           <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">
             {expense.paymentMethod}
           </span>
         )}
 
-        {/* 🔹 Notes (NEW — minimal addition) */}
+        {/* Notes */}
         {expense.notes && (
           <p className="text-sm text-gray-500 mt-1 truncate">
             {expense.notes}
@@ -79,6 +93,7 @@ export default function ExpenseItem({ expense, onDelete, onEdit }) {
         </div>
       </div>
 
+      {/* Actions */}
       <div className="flex items-center gap-3">
         <span className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
           ${expense.amount.toFixed(2)}

@@ -11,29 +11,29 @@ import {
   CartesianGrid,
   LineChart,
   Line,
-} from 'recharts';
-import { useState } from 'react';
-import { PieChartIcon, BarChart3, TrendingUp } from 'lucide-react';
+} from "recharts";
+import { useState } from "react";
+import { PieChartIcon, BarChart3, TrendingUp } from "lucide-react";
 
 /* ---- CATEGORY COLORS ---- */
 const COLORS = {
-  Food: '#f97316',
-  Transport: '#3b82f6',
-  Shopping: '#ec4899',
-  Bills: '#eab308',
-  Entertainment: '#a855f7',
-  Health: '#ef4444',
-  Other: '#6b7280',
+  Food: "#f97316",
+  Transport: "#3b82f6",
+  Shopping: "#ec4899",
+  Bills: "#eab308",
+  Entertainment: "#a855f7",
+  Health: "#ef4444",
+  Other: "#6b7280",
 };
 
 /* ---- CATEGORY NORMALIZER ---- */
 const normalizeCategory = (category) => {
-  if (category === 'Food & Drinks') return 'Food';
-  return category || 'Other';
+  if (category === "Food & Drinks") return "Food";
+  return category || "Other";
 };
 
 export default function ExpenseCharts({ expenses }) {
-  const [chartType, setChartType] = useState('pie');
+  const [chartType, setChartType] = useState("pie");
 
   if (!expenses || expenses.length === 0) {
     return null;
@@ -58,22 +58,27 @@ export default function ExpenseCharts({ expenses }) {
     }))
     .sort((a, b) => b.amount - a.amount);
 
-  /* ---- DAILY TREND ---- */
+  /* ---- ✅ FIXED DAILY TREND ---- */
   const dailyExpenses = expenses.reduce((acc, expense) => {
-    const date = expense.date;
-    acc[date] = (acc[date] || 0) + expense.amount;
+    const isoDate = expense.date; // keep ISO date
+    acc[isoDate] = (acc[isoDate] || 0) + expense.amount;
     return acc;
   }, {});
 
   const trendData = Object.entries(dailyExpenses)
     .map(([date, amount]) => ({
-      date: new Date(date).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      }),
+      rawDate: new Date(date),
       amount: Number(amount.toFixed(2)),
     }))
-    .slice(-14);
+    .sort((a, b) => a.rawDate - b.rawDate) // chronological
+    .slice(-14) // last 14 days ONLY after sorting
+    .map(({ rawDate, amount }) => ({
+      date: rawDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      amount,
+    }));
 
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
@@ -82,11 +87,11 @@ export default function ExpenseCharts({ expenses }) {
 
         <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
           <button
-            onClick={() => setChartType('pie')}
+            onClick={() => setChartType("pie")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md ${
-              chartType === 'pie'
-                ? 'bg-white shadow-sm text-purple-600'
-                : 'text-gray-600'
+              chartType === "pie"
+                ? "bg-white shadow-sm text-purple-600"
+                : "text-gray-600"
             }`}
           >
             <PieChartIcon className="w-4 h-4" />
@@ -94,11 +99,11 @@ export default function ExpenseCharts({ expenses }) {
           </button>
 
           <button
-            onClick={() => setChartType('bar')}
+            onClick={() => setChartType("bar")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md ${
-              chartType === 'bar'
-                ? 'bg-white shadow-sm text-purple-600'
-                : 'text-gray-600'
+              chartType === "bar"
+                ? "bg-white shadow-sm text-purple-600"
+                : "text-gray-600"
             }`}
           >
             <BarChart3 className="w-4 h-4" />
@@ -106,11 +111,11 @@ export default function ExpenseCharts({ expenses }) {
           </button>
 
           <button
-            onClick={() => setChartType('trend')}
+            onClick={() => setChartType("trend")}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md ${
-              chartType === 'trend'
-                ? 'bg-white shadow-sm text-purple-600'
-                : 'text-gray-600'
+              chartType === "trend"
+                ? "bg-white shadow-sm text-purple-600"
+                : "text-gray-600"
             }`}
           >
             <TrendingUp className="w-4 h-4" />
@@ -119,7 +124,7 @@ export default function ExpenseCharts({ expenses }) {
         </div>
       </div>
 
-      {chartType === 'pie' && (
+      {chartType === "pie" && (
         <>
           <p className="text-sm text-gray-600 mb-4">Spending by Category</p>
           <ResponsiveContainer width="100%" height={280}>
@@ -147,7 +152,7 @@ export default function ExpenseCharts({ expenses }) {
         </>
       )}
 
-      {chartType === 'bar' && (
+      {chartType === "bar" && (
         <>
           <p className="text-sm text-gray-600 mb-4">Category Comparison</p>
           <ResponsiveContainer width="100%" height={280}>
@@ -169,7 +174,7 @@ export default function ExpenseCharts({ expenses }) {
         </>
       )}
 
-      {chartType === 'trend' && (
+      {chartType === "trend" && (
         <>
           <p className="text-sm text-gray-600 mb-4">
             Daily Spending Trend (Last 14 Days)

@@ -11,7 +11,9 @@ import ExpenseItem from "./ExpenseItem";
 export default function ExpenseList({
   expenses,
   onDeleteExpense,
-  onEditExpense, // ✅ added
+  onEditExpense,
+  selectedExpenseIds = [],
+  onToggleSelect,
 }) {
   if (!expenses || expenses.length === 0) {
     return (
@@ -30,7 +32,9 @@ export default function ExpenseList({
           key={expense.id}
           expense={expense}
           onDelete={onDeleteExpense}
-          onEdit={onEditExpense} // ✅ added
+          onEdit={onEditExpense}
+          isSelected={selectedExpenseIds.includes(expense.id)}
+          onToggleSelect={onToggleSelect}
         />
       ))}
     </div>

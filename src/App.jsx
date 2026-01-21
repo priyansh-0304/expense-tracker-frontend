@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRef } from "react";
 import api from "./api";
 
 import ExpenseList from "./components/ExpenseList";
@@ -9,6 +10,7 @@ import MonthlyBudget from "./components/MonthlyBudget";
 import Login from "./pages/Login";
 import EditExpenseModal from "./components/EditExpenseModal";
 import ExpenseInsights from "./components/ExpenseInsights";
+import ExpenseAlerts from "./components/ExpenseAlerts";
 
 
 export default function App() {
@@ -20,6 +22,13 @@ export default function App() {
   const [editingExpense, setEditingExpense] = useState(null);
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
+  const today = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth());
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const [analyticsExpenses, setAnalyticsExpenses] = useState([]);
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState([]);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const deleteTimeoutRef = useRef(null);
 
   // ---------------- FILTER + SORT ----------------
   const [filterCategory, setFilterCategory] = useState(
@@ -28,6 +37,83 @@ export default function App() {
   const [sortBy, setSortBy] = useState(
     () => localStorage.getItem("sortBy") || "DATE_DESC"
   );
+
+  // ---------------------------------------------
+  const toggleSelectExpense = (id) => {
+    setSelectedExpenseIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
+    );
+  };
+
+  const clearSelection = () => {
+    setSelectedExpenseIds([]);
+  };
+  // ---------------------------------------------
+  const bulkDeleteExpenses = () => {
+    if (selectedExpenseIds.length === 0) return;
+
+    const deleted = expenses.filter(e =>
+      selectedExpenseIds.includes(e.id)
+    );
+
+    // 1. Optimistically remove from UI
+    setExpenses(prev =>
+      prev.filter(e => !selectedExpenseIds.includes(e.id))
+    );
+
+    setMonthlyExpenses(prev =>
+      prev.filter(e => !selectedExpenseIds.includes(e.id))
+    );
+
+    // 2. Save for undo
+    setPendingDelete(deleted);
+
+    // 3. Delay backend delete
+    deleteTimeoutRef.current = setTimeout(async () => {
+      try {
+        await Promise.all(
+          deleted.map(e => api.delete(`/expenses/${e.id}`))
+        );
+        setPendingDelete(null);
+      } catch (err) {
+        console.error("Bulk delete failed", err);
+      }
+    }, 5000); // ⏱ 5 seconds to regret life
+  };
+  // ---------------------------------------------
+  const undoBulkDelete = () => {
+    if (!pendingDelete) return;
+
+    // Cancel backend delete
+    clearTimeout(deleteTimeoutRef.current);
+
+    // Restore UI
+    setExpenses(prev => [...pendingDelete, ...prev]);
+    setMonthlyExpenses(prev => [...pendingDelete, ...prev]);
+
+    setPendingDelete(null);
+  };
+  // ---------------------------------------------
+  const fetchAnalyticsExpenses = async () => {
+    const today = new Date();
+    const from = new Date();
+    from.setDate(today.getDate() - 14);
+
+    const res = await api.get("/expenses/filter", {
+      params: {
+        from: from.toISOString().split("T")[0],
+        to: today.toISOString().split("T")[0],
+        size: 1000, // large on purpose
+        page: 0,
+        sortBy: "date",
+        sortDir: "asc",
+      },
+    });
+
+    setAnalyticsExpenses(res.data.content);
+  };
 
   // ---------------- PAGINATION ----------------
   const [page, setPage] = useState(0);
@@ -67,10 +153,51 @@ export default function App() {
 
   useEffect(() => {
     if (authenticated) {
-      fetchExpenses();          // paginated
-      fetchMonthlyExpenses();   // full dataset for analytics
+      fetchExpenses();        // paginated list
+      fetchMonthlyExpenses(); 
+      fetchAnalyticsExpenses();  // analytics (month-scoped)
     }
-  }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
+  }, [
+    authenticated,
+    page,
+    filterCategory,
+    sortBy,
+    fromDate,
+    toDate,
+    selectedMonth,
+    selectedYear,
+  ]);
+  // ---------------- SEARCH FILTERING + KEYBOARD SHORTCUTS ----------------
+  const searchedExpenses = expenses.filter((e) =>
+    e.title?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const isMac = navigator.platform.toUpperCase().includes("MAC");
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+      // ⌘/Ctrl + A → select all visible expenses
+      if (cmdOrCtrl && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setSelectedExpenseIds(searchedExpenses.map((e) => e.id));
+      }
+
+      // ⌘/Ctrl + Z → undo bulk delete (only if pending)
+      if (cmdOrCtrl && e.key.toLowerCase() === "z" && pendingDelete) {
+        e.preventDefault();
+        undoBulkDelete();
+      }
+
+      // Esc → clear selection
+      if (e.key === "Escape") {
+        clearSelection();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [searchedExpenses, pendingDelete]);
 
   // ---------------- API ----------------
   const fetchExpenses = async () => {
@@ -139,14 +266,22 @@ export default function App() {
   };
 
   const fetchMonthlyExpenses = async () => {
+    const from = new Date(selectedYear, selectedMonth, 1)
+      .toISOString()
+      .split("T")[0];
+
+    const to = new Date(selectedYear, selectedMonth + 1, 0)
+      .toISOString()
+      .split("T")[0];
+
     const res = await api.get("/expenses/filter", {
       params: {
         page: 0,
-        size: 1000, // big enough to cover a month
+        size: 1000,
         sortBy: "createdAt",
         sortDir: "desc",
-        from: fromDate,
-        to: toDate,
+        from,
+        to,
       },
     });
 
@@ -158,6 +293,7 @@ export default function App() {
       const res = await api.post("/expenses", expense); // 👈 api, NOT axios
 
       fetchExpenses();
+      fetchAnalyticsExpenses();
       setMonthlyExpenses((prev) => [res.data, ...prev]);
     } catch (err) {
       console.error("Add expense failed:", err);
@@ -168,7 +304,7 @@ export default function App() {
     await api.delete(`/expenses/${id}`);
 
     fetchExpenses();
-
+    fetchAnalyticsExpenses();
     // 🔹 keep analytics in sync
     setMonthlyExpenses((prev) => prev.filter((e) => e.id !== id));
   };
@@ -184,7 +320,7 @@ export default function App() {
     setMonthlyExpenses((prev) =>
       prev.map((e) => (e.id === expense.id ? res.data : e))
     );
-
+    fetchAnalyticsExpenses();
     setEditingExpense(null);
   };
 
@@ -258,9 +394,7 @@ export default function App() {
     link.click();
   };
   // ---------------- RENDER ----------------
-  const searchedExpenses = expenses.filter((e) =>
-    e.title?.toLowerCase().includes(search.toLowerCase())
-  );
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
@@ -293,6 +427,7 @@ export default function App() {
           <div className="space-y-6">
             <ExpenseForm onAddExpense={addExpense} categories={categories} />
             <MonthlyBudget expenses={monthlyExpenses} />
+            <ExpenseAlerts expenses={monthlyExpenses} budget={3000} />
             <ExpenseSummary expenses={expenses} />
           </div>
 
@@ -349,26 +484,50 @@ export default function App() {
                 { label: "This Week", key: "week" },
                 { label: "This Month", key: "month" },
                 { label: "Last 30 Days", key: "30days" },
-              ].map(({ label, key }) => (
-                <button
-                  key={key}
-                  onClick={() => {
-                    const { from, to } = getDateRange(key);
-                    setFromDate(from);
-                    setToDate(to);
-                    setPage(0);
-                  }}
-                  className="px-3 py-1 rounded-lg text-sm bg-gray-100 hover:bg-purple-100"
-                >
-                  {label}
-                </button>
-              ))}
+              ].map(({ label, key }) => {
+                if (key === "month") {
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        const now = new Date();
+                        setSelectedMonth(now.getMonth());
+                        setSelectedYear(now.getFullYear());
+
+                        const { from, to } = getDateRange("month");
+                        setFromDate(from);
+                        setToDate(to);
+                        setPage(0);
+                      }}
+                      className="px-3 py-1 rounded-lg text-sm bg-gray-100 hover:bg-purple-100"
+                    >
+                      {label}
+                    </button>
+                  );
+                }
+                return (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      const { from, to } = getDateRange(key);
+                      setFromDate(from);
+                      setToDate(to);
+                      setPage(0);
+                    }}
+                    className="px-3 py-1 rounded-lg text-sm bg-gray-100 hover:bg-purple-100"
+                  >
+                    {label}
+                  </button>
+                );
+              })}
 
               <button
                 onClick={() => {
                   setFromDate(null);
                   setToDate(null);
                   setPage(0);
+                  setSelectedMonth(today.getMonth());
+                  setSelectedYear(today.getFullYear());
                 }}
                 className="px-3 py-1 rounded-lg text-sm bg-red-50 text-red-600"
               >
@@ -376,12 +535,41 @@ export default function App() {
               </button>
             </div>
 
+            {selectedExpenseIds.length > 0 && (
+              <div className="mb-4 flex items-center justify-between bg-purple-50 border border-purple-200 rounded-xl px-4 py-2">
+                <span className="text-sm text-purple-700">
+                  {selectedExpenseIds.length} selected
+                </span>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      bulkDeleteExpenses();
+                      clearSelection();
+                    }}
+                    className="text-sm px-3 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700"
+                  >
+                    Delete selected
+                  </button>
+
+                  <button
+                    onClick={clearSelection}
+                    className="text-sm px-3 py-1 rounded-lg border"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
+
             <ExpenseList
               expenses={searchedExpenses}
               onDeleteExpense={deleteExpense}
               onEditExpense={(e) => setEditingExpense(e)}
+              selectedExpenseIds={selectedExpenseIds}
+              onToggleSelect={toggleSelectExpense}
             />
-            <ExpenseInsights expenses={monthlyExpenses} />
+
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 mt-6">
                 <button
@@ -405,11 +593,15 @@ export default function App() {
                 </button>
               </div>
             )}
+
+            <div className="sticky top-6 z-10 mt-6 mb-24">
+              <ExpenseInsights expenses={monthlyExpenses} />
+            </div>
           </div>
         </div>
 
-        {monthlyExpenses.length > 0 && (
-          <ExpenseCharts expenses={monthlyExpenses} />
+        {analyticsExpenses.length > 0 && (
+          <ExpenseCharts expenses={analyticsExpenses} />
         )}
       </div>
 
@@ -419,6 +611,18 @@ export default function App() {
           onSave={updateExpense}
           onClose={() => setEditingExpense(null)}
         />
+      )}
+
+      {pendingDelete && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-4 z-50">
+          <span>{pendingDelete.length} expenses deleted</span>
+          <button
+            onClick={undoBulkDelete}
+            className="font-semibold underline hover:text-purple-300"
+          >
+            Undo
+          </button>
+        </div>
       )}
     </div>
   );

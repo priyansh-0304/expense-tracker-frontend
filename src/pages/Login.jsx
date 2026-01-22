@@ -19,29 +19,48 @@ export default function Login({ onSuccess }) {
   };
 
   return (
-    <form onSubmit={handleLogin} className="bg-white p-6 rounded-xl shadow w-80">
-      <h2 className="text-xl font-semibold mb-4">Login</h2>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <form
+        onSubmit={handleLogin}
+        className="bg-white/90 backdrop-blur p-8 rounded-2xl shadow-xl w-[380px]"
+      >
+        <h2 className="text-2xl font-bold text-center mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          Expense Tracker
+        </h2>
+        <p className="text-center text-gray-500 text-sm mb-6">
+          Sign in to manage your expenses
+        </p>
 
-      <input
-        className="w-full mb-2 border p-2 rounded"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
+        <div className="space-y-4">
+          <input
+            className="w-full border border-gray-200 px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
 
-      <input
-        className="w-full mb-2 border p-2 rounded"
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+          <input
+            className="w-full border border-gray-200 px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
 
-      <button className="w-full bg-blue-600 text-white py-2 rounded">
-        Login
-      </button>
+        <button
+          type="submit"
+          className="w-full mt-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2.5 rounded-xl font-medium hover:opacity-90 transition"
+        >
+          Login
+        </button>
 
-      {error && <p className="text-red-500 mt-2">{error}</p>}
-    </form>
+        {error && (
+          <p className="text-red-500 text-sm text-center mt-4">
+            {error}
+          </p>
+        )}
+      </form>
+    </div>
   );
 }

@@ -5,7 +5,16 @@ import {
 } from "lucide-react";
 
 export default function ExpenseInsights({ expenses }) {
-  if (!expenses || expenses.length === 0) return null;
+  if (!expenses || expenses.length === 0) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-xl p-4 text-center text-gray-500">
+        <p className="text-sm font-medium">No insights yet</p>
+        <p className="text-xs mt-1">
+          Add expenses to unlock spending insights
+        </p>
+      </div>
+    );
+  }
 
   const total = expenses.reduce((s, e) => s + e.amount, 0);
   const avg = total / expenses.length;

@@ -35,8 +35,22 @@ const normalizeCategory = (category) => {
 export default function ExpenseCharts({ expenses }) {
   const [chartType, setChartType] = useState("pie");
 
-  if (!expenses || expenses.length === 0) {
-    return null;
+  // ✅ FIX: robust empty check (NO CRASH, REACTIVE)
+  const hasData =
+    Array.isArray(expenses) &&
+    expenses.some((e) => Number(e.amount) > 0);
+
+  if (!hasData) {
+    return (
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow p-8 border border-white/20 text-center">
+        <p className="text-sm font-medium text-gray-700">
+          No expense data yet
+        </p>
+        <p className="text-xs mt-1 text-gray-500">
+          Add expenses to see charts and trends
+        </p>
+      </div>
+    );
   }
 
   /* ---- CATEGORY TOTALS ---- */
@@ -58,9 +72,9 @@ export default function ExpenseCharts({ expenses }) {
     }))
     .sort((a, b) => b.amount - a.amount);
 
-  /* ---- ✅ FIXED DAILY TREND ---- */
+  /* ---- DAILY TREND ---- */
   const dailyExpenses = expenses.reduce((acc, expense) => {
-    const isoDate = expense.date; // keep ISO date
+    const isoDate = expense.date;
     acc[isoDate] = (acc[isoDate] || 0) + expense.amount;
     return acc;
   }, {});
@@ -70,8 +84,8 @@ export default function ExpenseCharts({ expenses }) {
       rawDate: new Date(date),
       amount: Number(amount.toFixed(2)),
     }))
-    .sort((a, b) => a.rawDate - b.rawDate) // chronological
-    .slice(-14) // last 14 days ONLY after sorting
+    .sort((a, b) => a.rawDate - b.rawDate)
+    .slice(-14)
     .map(({ rawDate, amount }) => ({
       date: rawDate.toLocaleDateString("en-US", {
         month: "short",

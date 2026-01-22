@@ -29,6 +29,15 @@ export default function App() {
   const [selectedExpenseIds, setSelectedExpenseIds] = useState([]);
   const [pendingDelete, setPendingDelete] = useState(null);
   const deleteTimeoutRef = useRef(null);
+  const [exportScope, setExportScope] = useState("view"); 
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [tempExportScope, setTempExportScope] = useState(exportScope);
+  const [activeQuickFilter, setActiveQuickFilter] = useState(null);
+
+  const MONTHS = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
 
   // ---------------- FILTER + SORT ----------------
   const [filterCategory, setFilterCategory] = useState(
@@ -58,7 +67,7 @@ export default function App() {
       selectedExpenseIds.includes(e.id)
     );
 
-    // 1. Optimistically remove from UI
+    // 1. Optimistically remove from LIST + MONTHLY UI only
     setExpenses(prev =>
       prev.filter(e => !selectedExpenseIds.includes(e.id))
     );
@@ -66,6 +75,8 @@ export default function App() {
     setMonthlyExpenses(prev =>
       prev.filter(e => !selectedExpenseIds.includes(e.id))
     );
+
+    // ❌ DO NOT touch analytics here
 
     // 2. Save for undo
     setPendingDelete(deleted);
@@ -76,11 +87,15 @@ export default function App() {
         await Promise.all(
           deleted.map(e => api.delete(`/expenses/${e.id}`))
         );
+
+        // ✅ Re-sync analytics from backend truth
+        fetchAnalyticsExpenses();
+
         setPendingDelete(null);
       } catch (err) {
         console.error("Bulk delete failed", err);
       }
-    }, 5000); // ⏱ 5 seconds to regret life
+    }, 5000);
   };
   // ---------------------------------------------
   const undoBulkDelete = () => {
@@ -92,7 +107,7 @@ export default function App() {
     // Restore UI
     setExpenses(prev => [...pendingDelete, ...prev]);
     setMonthlyExpenses(prev => [...pendingDelete, ...prev]);
-
+    setAnalyticsExpenses(prev => [...pendingDelete, ...prev]);
     setPendingDelete(null);
   };
   // ---------------------------------------------
@@ -189,6 +204,17 @@ export default function App() {
         undoBulkDelete();
       }
 
+      // ⌘/Ctrl + Backspace → bulk delete selected
+      if (
+        cmdOrCtrl &&
+        e.key === "Backspace" &&
+        selectedExpenseIds.length > 0
+      ) {
+        e.preventDefault();
+        bulkDeleteExpenses();
+        clearSelection();
+      }
+
       // Esc → clear selection
       if (e.key === "Escape") {
         clearSelection();
@@ -197,10 +223,12 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [searchedExpenses, pendingDelete]);
+  }, [searchedExpenses, pendingDelete, selectedExpenseIds]);
 
   // ---------------- API ----------------
   const fetchExpenses = async () => {
+    setLoading(true);
+    
     let sortField = "createdAt";
     let sortDir = "desc";
 
@@ -229,6 +257,7 @@ export default function App() {
 
     setExpenses(res.data.content || []);
     setTotalPages(res.data.totalPages || 0);
+    setLoading(false);
   };
 
   const getDateRange = (type) => {
@@ -300,13 +329,27 @@ export default function App() {
     }
   };
 
-  const deleteExpense = async (id) => {
-    await api.delete(`/expenses/${id}`);
+  const deleteExpense = (id) => {
+    const deleted = expenses.find(e => e.id === id);
+    if (!deleted) return;
 
-    fetchExpenses();
-    fetchAnalyticsExpenses();
-    // 🔹 keep analytics in sync
-    setMonthlyExpenses((prev) => prev.filter((e) => e.id !== id));
+    // 1. Optimistically remove from UI
+    setExpenses(prev => prev.filter(e => e.id !== id));
+    setMonthlyExpenses(prev => prev.filter(e => e.id !== id));
+    setAnalyticsExpenses(prev => prev.filter(e => e.id !== id));
+
+    // 2. Save for undo (same state as bulk delete)
+    setPendingDelete([deleted]);
+
+    // 3. Delay backend delete
+    deleteTimeoutRef.current = setTimeout(async () => {
+      try {
+        await api.delete(`/expenses/${id}`);
+        setPendingDelete(null);
+      } catch (err) {
+        console.error("Delete failed", err);
+      }
+    }, 5000); // ⏱ 5 seconds
   };
 
   const updateExpense = async (expense) => {
@@ -343,7 +386,7 @@ export default function App() {
 
   if (!authenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-indigo-50">
         <Login
           onSuccess={async () => {
             try {
@@ -369,15 +412,49 @@ export default function App() {
   ];
 
   // ---------------- EXPORT CSV ----------------
-  const exportCSV = () => {
-    if (!expenses.length) return;
+  const exportCSV = async (scope = exportScope) => {
+    let data = [];
 
-    const headers = ["Title", "Category", "Amount", "Date"];
-    const rows = expenses.map((e) => [
+    if (scope === "view") {
+      data = searchedExpenses;
+    }
+
+    if (scope === "month") {
+      data = monthlyExpenses;
+    }
+
+    if (scope === "all") {
+      // 🔑 fetch EVERYTHING once, bypass pagination
+      const res = await api.get("/expenses/filter", {
+        params: {
+          page: 0,
+          size: 10000, // big enough
+          sortBy: "createdAt",
+          sortDir: "desc",
+        },
+      });
+
+      data = res.data.content || [];
+    }
+
+    if (!data.length) return;
+
+    const headers = [
+      "Title",
+      "Category",
+      "Amount",
+      "Date",
+      "Payment Method",
+      "Notes",
+    ];
+
+    const rows = data.map((e) => [
       `"${e.title || ""}"`,
       `"${e.category}"`,
       e.amount,
       e.date,
+      `"${e.paymentMethod || ""}"`,
+      `"${e.notes || ""}"`,
     ]);
 
     const csv =
@@ -388,11 +465,12 @@ export default function App() {
 
     const link = document.createElement("a");
     link.href = url;
-    link.download = `expenses_${new Date()
+    link.download = `expenses_${exportScope}_${new Date()
       .toISOString()
       .split("T")[0]}.csv`;
     link.click();
   };
+
   // ---------------- RENDER ----------------
   
   return (
@@ -408,7 +486,10 @@ export default function App() {
 
           <div>
             <button
-              onClick={exportCSV}
+              onClick={() => {
+                setTempExportScope(exportScope);
+                setShowExportModal(true);
+              }}
               className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl"
             >
               Export CSV
@@ -478,13 +559,15 @@ export default function App() {
               </select>
             </div>
 
-            <div className="flex gap-2 mb-4 flex-wrap">
+            <div className="flex justify-center gap-3 mb-4 flex-wrap items-center">
               {[
-                { label: "Today", key: "today" },
-                { label: "This Week", key: "week" },
-                { label: "This Month", key: "month" },
-                { label: "Last 30 Days", key: "30days" },
-              ].map(({ label, key }) => {
+                { label: "Today", key: "today", icon: "🕒" },
+                { label: "This Week", key: "week", icon: "📅" },
+                { label: "This Month", key: "month", icon: "🗓️" },
+                { label: "Last 30 Days", key: "30days", icon: "📈" },
+              ].map(({ label, key, icon }) => {
+                const isActive = activeQuickFilter === key;
+
                 if (key === "month") {
                   return (
                     <button
@@ -498,13 +581,29 @@ export default function App() {
                         setFromDate(from);
                         setToDate(to);
                         setPage(0);
+                        setActiveQuickFilter("month");
                       }}
-                      className="px-3 py-1 rounded-lg text-sm bg-gray-100 hover:bg-purple-100"
+                      className={`
+                        flex items-center gap-2
+                        px-5 py-2
+                        rounded-full
+                        border
+                        text-sm font-medium
+                        shadow-sm
+                        transition-all
+                        ${
+                          isActive
+                            ? "bg-purple-600 text-white border-purple-600"
+                            : "bg-white text-gray-800 border-gray-200 hover:bg-purple-50 hover:border-purple-300"
+                        }
+                      `}
                     >
+                      <span className="text-base">{icon}</span>
                       {label}
                     </button>
                   );
                 }
+
                 return (
                   <button
                     key={key}
@@ -513,9 +612,24 @@ export default function App() {
                       setFromDate(from);
                       setToDate(to);
                       setPage(0);
+                      setActiveQuickFilter(key);
                     }}
-                    className="px-3 py-1 rounded-lg text-sm bg-gray-100 hover:bg-purple-100"
+                    className={`
+                      flex items-center gap-2
+                      px-5 py-2
+                      rounded-full
+                      border
+                      text-sm font-medium
+                      shadow-sm
+                      transition-all
+                      ${
+                        isActive
+                          ? "bg-purple-600 text-white border-purple-600"
+                          : "bg-white text-gray-800 border-gray-200 hover:bg-purple-50 hover:border-purple-300"
+                      }
+                    `}
                   >
+                    <span className="text-base">{icon}</span>
                     {label}
                   </button>
                 );
@@ -528,13 +642,21 @@ export default function App() {
                   setPage(0);
                   setSelectedMonth(today.getMonth());
                   setSelectedYear(today.getFullYear());
+                  setActiveQuickFilter(null);
                 }}
-                className="px-3 py-1 rounded-lg text-sm bg-red-50 text-red-600"
+                className="
+                  flex items-center gap-2
+                  px-5 py-2
+                  rounded-full
+                  bg-red-50
+                  text-red-600 text-sm font-medium
+                  hover:bg-red-100
+                  transition-all
+                "
               >
                 Clear
               </button>
             </div>
-
             {selectedExpenseIds.length > 0 && (
               <div className="mb-4 flex items-center justify-between bg-purple-50 border border-purple-200 rounded-xl px-4 py-2">
                 <span className="text-sm text-purple-700">
@@ -562,13 +684,22 @@ export default function App() {
               </div>
             )}
 
-            <ExpenseList
-              expenses={searchedExpenses}
-              onDeleteExpense={deleteExpense}
-              onEditExpense={(e) => setEditingExpense(e)}
-              selectedExpenseIds={selectedExpenseIds}
-              onToggleSelect={toggleSelectExpense}
-            />
+            {loading ? (
+              <ExpenseListSkeleton rows={5} />
+            ) : searchedExpenses.length === 0 ? (
+              <div className="py-12 text-center text-gray-500">
+                <p className="text-sm font-medium">No expenses found</p>
+                <p className="text-xs mt-1">Add an expense to get started</p>
+              </div>
+            ) : (
+              <ExpenseList
+                expenses={searchedExpenses}
+                onDeleteExpense={deleteExpense}
+                onEditExpense={(e) => setEditingExpense(e)}
+                selectedExpenseIds={selectedExpenseIds}
+                onToggleSelect={toggleSelectExpense}
+              />
+            )}
 
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 mt-6">
@@ -593,16 +724,15 @@ export default function App() {
                 </button>
               </div>
             )}
-
+            
             <div className="sticky top-6 z-10 mt-6 mb-24">
               <ExpenseInsights expenses={monthlyExpenses} />
             </div>
           </div>
         </div>
-
-        {analyticsExpenses.length > 0 && (
-          <ExpenseCharts expenses={analyticsExpenses} />
-        )}
+        
+        <ExpenseCharts expenses={analyticsExpenses} />
+        
       </div>
 
       {editingExpense && (
@@ -622,6 +752,85 @@ export default function App() {
           >
             Undo
           </button>
+        </div>
+      )}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-5">
+            <h3 className="text-lg font-semibold">Export Expenses</h3>
+
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="exportScope"
+                  value="view"
+                  checked={tempExportScope === "view"}
+                  onChange={() => setTempExportScope("view")}
+                />
+                <span>
+                  <p className="font-medium">Current View</p>
+                  <p className="text-xs text-gray-500">
+                    Exports filtered & searched expenses
+                  </p>
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="exportScope"
+                  value="month"
+                  checked={tempExportScope === "month"}
+                  onChange={() => setTempExportScope("month")}
+                />
+                <span>
+                  <p className="font-medium">This Month</p>
+                  <p className="text-xs text-gray-500">
+                    Exports all expenses for selected month
+                  </p>
+                </span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="exportScope"
+                  value="all"
+                  checked={tempExportScope === "all"}
+                  onChange={() => setTempExportScope("all")}
+                />
+                <span>
+                  <p className="font-medium">All Expenses</p>
+                  <p className="text-xs text-gray-500">
+                    Exports your entire expense history
+                  </p>
+                </span>
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 rounded-lg border text-sm"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={() => {
+                  setExportScope(tempExportScope);
+                  setShowExportModal(false);
+
+                  // pass scope explicitly to avoid stale state
+                  exportCSV(tempExportScope);
+                }}
+                className="px-5 py-2 rounded-lg bg-green-600 text-white text-sm hover:bg-green-700"
+              >
+                Export
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -5,6 +5,8 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
     title: "",
     amount: "",
     category: "",
+    paymentMethod: "Cash",
+    notes: "",
     date: "",
   });
 
@@ -16,11 +18,27 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
       title: expense.title || "",
       amount: expense.amount ?? "",
       category: expense.category || "",
+      paymentMethod: expense.paymentMethod || "Cash",
+      notes: expense.notes || "",
       date: expense.date
         ? new Date(expense.date).toISOString().split("T")[0]
         : "",
     });
   }, [expense]);
+
+  const isDirty =
+    expense &&
+    (
+      form.title !== (expense.title || "") ||
+      Number(form.amount) !== Number(expense.amount) ||
+      form.category !== (expense.category || "") ||
+      form.paymentMethod !== (expense.paymentMethod || "Cash") ||
+      form.notes !== (expense.notes || "") ||
+      form.date !==
+        (expense.date
+          ? new Date(expense.date).toISOString().split("T")[0]
+          : "")
+    );
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -34,13 +52,13 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
     e.preventDefault();
 
     await onSave({
-        id: expense.id,
-        title: form.title,
-        amount: Number(form.amount),
-        category: form.category,
-        paymentMethod: expense.paymentMethod || "Cash",
-        notes: expense.notes || "",
-        date: form.date,
+      id: expense.id,
+      title: form.title,
+      amount: Number(form.amount),
+      category: form.category,
+      paymentMethod: form.paymentMethod,
+      notes: form.notes,
+      date: form.date,
     });
 
     onClose();
@@ -97,6 +115,28 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
             ))}
           </select>
 
+          <select
+            name="paymentMethod"
+            value={form.paymentMethod}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border rounded-lg"
+          >
+            {["Cash", "UPI", "Credit Card", "Debit Card", "Bank Transfer"].map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+
+          <textarea
+            name="notes"
+            value={form.notes}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border rounded-lg"
+            placeholder="Notes (optional)"
+            rows={2}
+          />
+
           {/* Date */}
           <input
             name="date"
@@ -119,7 +159,8 @@ export default function EditExpenseModal({ expense, onClose, onSave }) {
 
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-purple-600 text-white"
+              disabled={!isDirty}
+              className="px-4 py-2 rounded-lg bg-purple-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Save
             </button>

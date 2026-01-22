@@ -17,10 +17,9 @@ export default function ExpenseList({
 }) {
   if (!expenses || expenses.length === 0) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">
-          No expenses yet. Add your first expense to get started!
-        </p>
+      <div className="py-12 text-center text-gray-500">
+        <p className="text-sm">No expenses found</p>
+        <p className="text-xs mt-1">Add an expense to see insights</p>
       </div>
     );
   }

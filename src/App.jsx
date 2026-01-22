@@ -168,9 +168,8 @@ export default function App() {
 
   useEffect(() => {
     if (authenticated) {
-      fetchExpenses();        // paginated list
-      fetchMonthlyExpenses(); 
-      fetchAnalyticsExpenses();  // analytics (month-scoped)
+      fetchExpenses();
+      fetchMonthlyExpenses();
     }
   }, [
     authenticated,
@@ -182,6 +181,13 @@ export default function App() {
     selectedMonth,
     selectedYear,
   ]);
+
+  // analytics ONLY once
+  useEffect(() => {
+    if (authenticated) {
+      fetchAnalyticsExpenses();
+    }
+  }, [authenticated]);
   // ---------------- SEARCH FILTERING + KEYBOARD SHORTCUTS ----------------
   const searchedExpenses = expenses.filter((e) =>
     e.title?.toLowerCase().includes(search.toLowerCase())

@@ -18,7 +18,8 @@ export default function App() {
   const [monthlyExpenses, setMonthlyExpenses] = useState([]);
   const [totalPages, setTotalPages] = useState(0);
   const [authenticated, setAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [initializing, setInitializing] = useState(true); // backend check
+  const [loading, setLoading] = useState(false); // data fetching
   const [editingExpense, setEditingExpense] = useState(null);
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
@@ -153,7 +154,7 @@ export default function App() {
 
     if (!token) {
       setAuthenticated(false);
-      setLoading(false);
+      setInitializing(false);
       return;
     }
 
@@ -163,7 +164,7 @@ export default function App() {
         localStorage.removeItem("jwt");
         setAuthenticated(false);
       })
-      .finally(() => setLoading(false));
+      .finally(() => setInitializing(false));
   }, []);
 
   useEffect(() => {
@@ -239,7 +240,6 @@ export default function App() {
     let sortDir = "desc";
 
     if (sortBy === "DATE_ASC") {
-      sortField = "createdAt";
       sortDir = "asc";
     } else if (sortBy === "AMOUNT_DESC") {
       sortField = "amount";
@@ -252,14 +252,22 @@ export default function App() {
     const params = {
       page,
       size: PAGE_SIZE,
-      category: filterCategory === "ALL" ? null : filterCategory,
       sortBy: sortField,
       sortDir,
     };
 
-    // ✅ ONLY include dates if they exist
-    if (fromDate) params.from = fromDate;
-    if (toDate) params.to = toDate;
+    // ✅ ONLY add params if they exist
+    if (filterCategory && filterCategory !== "ALL") {
+      params.category = filterCategory;
+    }
+
+    if (fromDate) {
+      params.from = fromDate;
+    }
+
+    if (toDate) {
+      params.to = toDate;
+    }
 
     const res = await api.get("/expenses/filter", { params });
 
@@ -267,7 +275,7 @@ export default function App() {
     setTotalPages(res.data.totalPages || 0);
     setLoading(false);
   };
-
+  // ---------------- MONTHLY EXPENSES ----------------
   const getDateRange = (type) => {
     const today = new Date();
     let from = null;
@@ -384,7 +392,7 @@ export default function App() {
   };
 
   // ---------------- UI STATES ----------------
-  if (loading) {
+  if (initializing) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>Checking backend…</p>

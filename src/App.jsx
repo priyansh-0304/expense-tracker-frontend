@@ -228,7 +228,7 @@ export default function App() {
   // ---------------- API ----------------
   const fetchExpenses = async () => {
     setLoading(true);
-    
+
     let sortField = "createdAt";
     let sortDir = "desc";
 
@@ -243,17 +243,19 @@ export default function App() {
       sortDir = "asc";
     }
 
-    const res = await api.get("/expenses/filter", {
-      params: {
-        page,
-        size: PAGE_SIZE,
-        category: filterCategory === "ALL" ? null : filterCategory,
-        sortBy: sortField,
-        sortDir,
-        from: fromDate,
-        to: toDate,
-      },
-    });
+    const params = {
+      page,
+      size: PAGE_SIZE,
+      category: filterCategory === "ALL" ? null : filterCategory,
+      sortBy: sortField,
+      sortDir,
+    };
+
+    // ✅ ONLY include dates if they exist
+    if (fromDate) params.from = fromDate;
+    if (toDate) params.to = toDate;
+
+    const res = await api.get("/expenses/filter", { params });
 
     setExpenses(res.data.content || []);
     setTotalPages(res.data.totalPages || 0);

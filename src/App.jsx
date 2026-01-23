@@ -239,14 +239,26 @@ export default function App() {
   function clearSelection() {
     setSelectedExpenseIds([]);
   }
-  
+
   async function bulkDeleteExpenses() {
+    const toDelete = expenses.filter((e) =>
+      selectedExpenseIds.includes(e.id)
+    );
+
     await Promise.all(
       selectedExpenseIds.map((id) => api.delete(`/expenses/${id}`))
     );
+
     setExpenses((prev) =>
       prev.filter((e) => !selectedExpenseIds.includes(e.id))
     );
+
+    setPendingDelete(toDelete);
+
+    deleteTimeoutRef.current = setTimeout(() => {
+      setPendingDelete(null);
+    }, 5000);
+
     setSelectedExpenseIds([]);
   }
 
@@ -254,7 +266,7 @@ export default function App() {
     if (!pendingDelete) return;
     clearTimeout(deleteTimeoutRef.current);
     setExpenses(prev => [...pendingDelete, ...prev]);
-    setMonthlyExpenses(prev => [...pendingDelete, ...prev]);
+    
     setPendingDelete(null);
   }
 
@@ -431,17 +443,22 @@ export default function App() {
                 { label: "Last 30 Days", key: "30days", icon: "📈" }
               ].map(({ label, key, icon }) => {
                 const isActive = activeQuickFilter === key;
+
                 if (key === "month") {
                   return (
                     <button
                       key={key}
                       onClick={() => {
                         const now = new Date();
+
                         setSelectedMonth(now.getMonth());
                         setSelectedYear(now.getFullYear());
+
                         const { from, to } = getDateRange("month");
                         setFromDate(from);
                         setToDate(to);
+
+                        setSearch("");          // ✅ IMPORTANT
                         setPage(0);
                         setActiveQuickFilter("month");
                       }}
@@ -465,13 +482,17 @@ export default function App() {
                     </button>
                   );
                 }
+
                 return (
                   <button
                     key={key}
                     onClick={() => {
                       const { from, to } = getDateRange(key);
+
                       setFromDate(from);
                       setToDate(to);
+
+                      setSearch("");          // ✅ IMPORTANT
                       setPage(0);
                       setActiveQuickFilter(key);
                     }}
@@ -495,11 +516,15 @@ export default function App() {
                   </button>
                 );
               })}
+
               <button
                 onClick={() => {
                   setFromDate(null);
                   setToDate(null);
+
+                  setSearch("");              // ✅ IMPORTANT
                   setPage(0);
+
                   setSelectedMonth(today.getMonth());
                   setSelectedYear(today.getFullYear());
                   setActiveQuickFilter(null);

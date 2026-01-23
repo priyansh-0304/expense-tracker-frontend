@@ -130,19 +130,25 @@ export default function App() {
           from: from.toISOString().split("T")[0],
           to: today.toISOString().split("T")[0],
           page: 0,
-          size: 1000,              // intentionally large
-          sortBy: "createdAt",     // ❌ "date" does NOT exist in backend sorting
+          size: 1000,          // intentionally large
+          sortBy: "createdAt",
           sortDir: "asc",
         },
       });
 
-      setAnalyticsExpenses(
-        Array.isArray(res.data?.content) ? res.data.content : []
-      );
+      // 🔑 NORMALIZE DATE FOR CHARTS
+      const normalized = Array.isArray(res.data?.content)
+        ? res.data.content.map((e) => ({
+            ...e,
+            date: new Date(e.date), // ← this is what resurrects the charts
+          }))
+        : [];
+
+      setAnalyticsExpenses(normalized);
     } catch (err) {
       console.error("fetchAnalyticsExpenses failed:", err);
 
-      // 🔑 prevent charts from breaking UI
+      // keep UI stable
       setAnalyticsExpenses([]);
     }
   };
@@ -199,18 +205,26 @@ export default function App() {
   ]);
   */}
 
-  useEffect(() => {
-    if (authenticated) {
-      fetchExpenses();
-    }
-  }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
+  // table data
+useEffect(() => {
+  if (authenticated) {
+    fetchExpenses();
+  }
+}, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
 
-  // analytics ONLY once
-  useEffect(() => {
-    if (authenticated) {
-      fetchAnalyticsExpenses();
-    }
-  }, [authenticated, fromDate, toDate]);
+// charts (independent)
+useEffect(() => {
+  if (authenticated) {
+    fetchAnalyticsExpenses();
+  }
+}, [authenticated]);
+
+// insights (month-based)
+useEffect(() => {
+  if (authenticated) {
+    fetchMonthlyExpenses();
+  }
+}, [authenticated, selectedMonth, selectedYear]);
 
   // ---------------- SEARCH FILTERING + KEYBOARD SHORTCUTS ----------------
   const searchedExpenses = expenses.filter((e) =>
@@ -374,11 +388,11 @@ export default function App() {
 
   const addExpense = async (expense) => {
     try {
-      const res = await api.post("/expenses", expense); // 👈 api, NOT axios
+      await api.post("/expenses", expense);
 
-      fetchExpenses();
-      fetchAnalyticsExpenses();
-      setMonthlyExpenses((prev) => [res.data, ...prev]);
+      await fetchExpenses();
+      await fetchAnalyticsExpenses();
+      await fetchMonthlyExpenses(); // 🔑 single source of truth
     } catch (err) {
       console.error("Add expense failed:", err);
     }
@@ -785,9 +799,7 @@ export default function App() {
           </div>
         </div>
         
-        {analyticsExpenses.length > 0 && !loading && (
-          <ExpenseCharts expenses={analyticsExpenses} />
-        )}
+        <ExpenseCharts expenses={analyticsExpenses} loading={loading} />
         
       </div>
 

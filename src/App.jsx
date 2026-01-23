@@ -93,7 +93,7 @@ export default function App() {
   useEffect(() => {
     if (!authenticated) return;
     fetchExpenses();
-  }, [authenticated, page, filterCategory, sortBy]);
+  }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
 
   // Persist filter/sort to localStorage
   useEffect(() => {
@@ -200,9 +200,6 @@ export default function App() {
       setSelectedMonth(now.getMonth());
       setSelectedYear(now.getFullYear());
     }
-
-    // 🔑 fetch ONLY ONCE with final state
-    setTimeout(fetchExpenses, 0);
   }
 
   function getDateRange(type) {
@@ -522,7 +519,7 @@ export default function App() {
                   setPage(0);
                   setFilterCategory("ALL");
                   localStorage.setItem("filterCategory", "ALL");
-                  fetchExpenses();
+                  // ❌ DO NOT call fetchExpenses here
                 }}
                 className="
                   flex items-center gap-2

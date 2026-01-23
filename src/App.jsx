@@ -158,13 +158,9 @@ export default function App() {
         params.category = filterCategory;
       }
       // DATE FILTERING — SINGLE SOURCE OF TRUTH
-      if (activeQuickFilter) {
-        const { from, to } = getDateRange(activeQuickFilter);
-        params.from = from;
-        params.to = to;
-      } else {
-        if (fromDate) params.from = fromDate;
-        if (toDate) params.to = toDate;
+      if (fromDate && toDate) {
+        params.from = fromDate;
+        params.to = toDate;
       }
       const res = await api.get("/expenses/filter", { params });
       setExpenses(Array.isArray(res.data?.content) ? res.data.content : []);
@@ -179,11 +175,14 @@ export default function App() {
   }
 
   function applyQuickFilter(type) {
+    const { from, to } = getDateRange(type);
+
     setActiveQuickFilter(type);
+    setFromDate(from);
+    setToDate(to);
+
     setPage(0);
     setSearch("");
-    setFilterCategory("ALL");
-    localStorage.setItem("filterCategory", "ALL");
   }
 
   function formatLocalDate(date) {
@@ -525,10 +524,7 @@ export default function App() {
                   setActiveQuickFilter(null);
                   setFromDate(null);
                   setToDate(null);
-                  setSearch("");
                   setPage(0);
-                  setFilterCategory("ALL");
-                  localStorage.setItem("filterCategory", "ALL");
                 }}
                 className="
                   flex items-center gap-2

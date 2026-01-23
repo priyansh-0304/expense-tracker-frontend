@@ -92,6 +92,9 @@ export default function App() {
   // Table data fetch (pagination and filters)
   useEffect(() => {
     if (!authenticated) return;
+    if ((fromDate && !toDate) || (!fromDate && toDate)) {
+      return;
+    }
     fetchExpenses();
   }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
 

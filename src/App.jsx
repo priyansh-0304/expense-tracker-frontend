@@ -240,15 +240,13 @@ export default function App() {
 
     await api.delete(`/expenses/${id}`);
 
-    // optimistic UI removal
     setExpenses((prev) => prev.filter((e) => e.id !== id));
+    setPage(0);
 
-    // reuse SAME undo system as bulk delete
     setPendingDelete([deleted]);
 
     deleteTimeoutRef.current = setTimeout(() => {
       setPendingDelete(null);
-      //fetchExpenses(); // 🔑 resync after undo window expires
     }, 5000);
   }
 
@@ -285,7 +283,7 @@ export default function App() {
     setExpenses((prev) =>
       prev.filter((e) => !selectedExpenseIds.includes(e.id))
     );
-    
+
     setPage(0);
     setPendingDelete(toDelete);
 
@@ -296,12 +294,30 @@ export default function App() {
     setSelectedExpenseIds([]);
   }
 
-  function undoBulkDelete() {
-    if (!pendingDelete) return;
+  async function undoBulkDelete() {
+    if (!pendingDelete || pendingDelete.length === 0) return;
+
     clearTimeout(deleteTimeoutRef.current);
-    setExpenses(prev => [...pendingDelete, ...prev]);
-    
+
+    // 🔑 Re-create expenses in backend
+    await Promise.all(
+      pendingDelete.map((expense) =>
+        api.post("/expenses", {
+          title: expense.title,
+          category: expense.category,
+          amount: expense.amount,
+          date: expense.date,
+          paymentMethod: expense.paymentMethod,
+          notes: expense.notes,
+        })
+      )
+    );
+
     setPendingDelete(null);
+
+    // 🔑 Resync from backend (single source of truth)
+    setPage(0);
+    await fetchExpenses();
   }
 
   function handleLogout() {

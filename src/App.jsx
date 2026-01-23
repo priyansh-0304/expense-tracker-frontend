@@ -11,31 +11,37 @@ import Login from "./pages/Login";
 import EditExpenseModal from "./components/EditExpenseModal";
 import ExpenseInsights from "./components/ExpenseInsights";
 import ExpenseAlerts from "./components/ExpenseAlerts";
-
-console.log("API URL =", import.meta.env.VITE_API_URL);
+import ExpenseListSkeleton from "./components/ExpenseListSkeleton";
 
 export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [monthlyExpenses, setMonthlyExpenses] = useState([]);
+  const [analyticsExpenses, setAnalyticsExpenses] = useState([]);
+
   const [totalPages, setTotalPages] = useState(0);
+
   const [authenticated, setAuthenticated] = useState(false);
   const [initializing, setInitializing] = useState(true); // backend check
+
   const [loading, setLoading] = useState(false); // data fetching
   const [editingExpense, setEditingExpense] = useState(null);
+  const [search, setSearch] = useState("");
+
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
   const today = new Date();
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth());
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
-  const [analyticsExpenses, setAnalyticsExpenses] = useState([]);
+  const [activeQuickFilter, setActiveQuickFilter] = useState(null);
+
   const [selectedExpenseIds, setSelectedExpenseIds] = useState([]);
   const [pendingDelete, setPendingDelete] = useState(null);
   const deleteTimeoutRef = useRef(null);
+
   const [exportScope, setExportScope] = useState("view"); 
   const [showExportModal, setShowExportModal] = useState(false);
   const [tempExportScope, setTempExportScope] = useState(exportScope);
-  const [activeQuickFilter, setActiveQuickFilter] = useState(null);
-
+  
   const MONTHS = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -114,28 +120,36 @@ export default function App() {
   };
   // ---------------------------------------------
   const fetchAnalyticsExpenses = async () => {
-    const today = new Date();
-    const from = new Date();
-    from.setDate(today.getDate() - 14);
+    try {
+      const today = new Date();
+      const from = new Date();
+      from.setDate(today.getDate() - 14);
 
-    const res = await api.get("/expenses/filter", {
-      params: {
-        from: from.toISOString().split("T")[0],
-        to: today.toISOString().split("T")[0],
-        size: 1000, // large on purpose
-        page: 0,
-        sortBy: "date",
-        sortDir: "asc",
-      },
-    });
+      const res = await api.get("/expenses/filter", {
+        params: {
+          from: from.toISOString().split("T")[0],
+          to: today.toISOString().split("T")[0],
+          page: 0,
+          size: 1000,              // intentionally large
+          sortBy: "createdAt",     // ❌ "date" does NOT exist in backend sorting
+          sortDir: "asc",
+        },
+      });
 
-    setAnalyticsExpenses(res.data.content);
+      setAnalyticsExpenses(
+        Array.isArray(res.data?.content) ? res.data.content : []
+      );
+    } catch (err) {
+      console.error("fetchAnalyticsExpenses failed:", err);
+
+      // 🔑 prevent charts from breaking UI
+      setAnalyticsExpenses([]);
+    }
   };
 
   // ---------------- PAGINATION ----------------
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 10;
-  const [search, setSearch] = useState("");
 
   useEffect(() => {
     localStorage.setItem("filterCategory", filterCategory);
@@ -167,7 +181,7 @@ export default function App() {
       })
       .finally(() => setInitializing(false));
   }, []);
-
+  {/*}
   useEffect(() => {
     if (authenticated) {
       fetchExpenses();
@@ -183,13 +197,21 @@ export default function App() {
     selectedMonth,
     selectedYear,
   ]);
+  */}
+
+  useEffect(() => {
+    if (authenticated) {
+      fetchExpenses();
+    }
+  }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
 
   // analytics ONLY once
   useEffect(() => {
     if (authenticated) {
       fetchAnalyticsExpenses();
     }
-  }, [authenticated]);
+  }, [authenticated, fromDate, toDate]);
+
   // ---------------- SEARCH FILTERING + KEYBOARD SHORTCUTS ----------------
   const searchedExpenses = expenses.filter((e) =>
     e.title?.toLowerCase().includes(search.toLowerCase())
@@ -237,44 +259,60 @@ export default function App() {
   const fetchExpenses = async () => {
     setLoading(true);
 
-    let sortField = "createdAt";
-    let sortDir = "desc";
+    try {
+      let sortField = "createdAt";
+      let sortDir = "desc";
 
-    if (sortBy === "DATE_ASC") {
-      sortDir = "asc";
-    } else if (sortBy === "AMOUNT_DESC") {
-      sortField = "amount";
-      sortDir = "desc";
-    } else if (sortBy === "AMOUNT_ASC") {
-      sortField = "amount";
-      sortDir = "asc";
+      if (sortBy === "DATE_ASC") {
+        sortDir = "asc";
+      } else if (sortBy === "AMOUNT_DESC") {
+        sortField = "amount";
+        sortDir = "desc";
+      } else if (sortBy === "AMOUNT_ASC") {
+        sortField = "amount";
+        sortDir = "asc";
+      }
+
+      const params = {
+        page,
+        size: PAGE_SIZE,
+        sortBy: sortField,
+        sortDir,
+      };
+
+      // ✅ only attach when meaningful
+      if (filterCategory && filterCategory !== "ALL") {
+        params.category = filterCategory;
+      }
+
+      if (fromDate) {
+        params.from =
+          typeof fromDate === "string"
+            ? fromDate
+            : new Date(fromDate).toISOString().split("T")[0];
+      }
+
+      if (toDate) {
+        params.to =
+          typeof toDate === "string"
+            ? toDate
+            : new Date(toDate).toISOString().split("T")[0];
+      }
+
+      const res = await api.get("/expenses/filter", { params });
+
+      setExpenses(Array.isArray(res.data?.content) ? res.data.content : []);
+      setTotalPages(Number.isInteger(res.data?.totalPages) ? res.data.totalPages : 0);
+    } catch (err) {
+      console.error("fetchExpenses failed:", err);
+
+      // 🔑 prevent UI freeze
+      setExpenses([]);
+      setTotalPages(0);
+    } finally {
+      // 🔑 ALWAYS release loading state
+      setLoading(false);
     }
-
-    const params = {
-      page,
-      size: PAGE_SIZE,
-      sortBy: sortField,
-      sortDir,
-    };
-
-    // ✅ ONLY add params if they exist
-    if (filterCategory && filterCategory !== "ALL") {
-      params.category = filterCategory;
-    }
-
-    if (fromDate) {
-      params.from = fromDate;
-    }
-
-    if (toDate) {
-      params.to = toDate;
-    }
-
-    const res = await api.get("/expenses/filter", { params });
-
-    setExpenses(res.data.content || []);
-    setTotalPages(res.data.totalPages || 0);
-    setLoading(false);
   };
   // ---------------- MONTHLY EXPENSES ----------------
   const getDateRange = (type) => {
@@ -405,13 +443,9 @@ export default function App() {
     return (
       <div className="min-h-screen bg-indigo-50">
         <Login
-          onSuccess={async () => {
-            try {
-              await verifyBackend();
-              setAuthenticated(true);
-            } catch {
-              alert("Backend is unavailable");
-            }
+          onSuccess={() => {
+            // Backend is already known to be up at this point
+            setAuthenticated(true);
           }}
         />
       </div>
@@ -742,13 +776,18 @@ export default function App() {
               </div>
             )}
             
-            <div className="sticky top-6 z-10 mt-6 mb-24">
-              <ExpenseInsights expenses={monthlyExpenses} />
-            </div>
+            {monthlyExpenses.length > 0 && (
+              <div className="sticky top-6 z-10 mt-6 mb-24">
+                <ExpenseInsights expenses={monthlyExpenses} />
+              </div>
+            )}
+
           </div>
         </div>
         
-        <ExpenseCharts expenses={analyticsExpenses} />
+        {analyticsExpenses.length > 0 && !loading && (
+          <ExpenseCharts expenses={analyticsExpenses} />
+        )}
         
       </div>
 

@@ -12,6 +12,7 @@ import EditExpenseModal from "./components/EditExpenseModal";
 import ExpenseInsights from "./components/ExpenseInsights";
 import ExpenseAlerts from "./components/ExpenseAlerts";
 
+console.log("API URL =", import.meta.env.VITE_API_URL);
 
 export default function App() {
   const [expenses, setExpenses] = useState([]);

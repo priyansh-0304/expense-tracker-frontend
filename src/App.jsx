@@ -158,7 +158,7 @@ export default function App() {
         params.category = filterCategory;
       }
       // DATE FILTERING — SINGLE SOURCE OF TRUTH
-      if (fromDate && toDate) {
+      if (fromDate !== null && toDate !== null) {
         params.from = fromDate;
         params.to = toDate;
       }
@@ -175,14 +175,13 @@ export default function App() {
   }
 
   function applyQuickFilter(type) {
-    const { from, to } = getDateRange(type);
+    const range = getDateRange(type);
+    if (!range.from || !range.to) return;
 
     setActiveQuickFilter(type);
-    setFromDate(from);
-    setToDate(to);
-
+    setFromDate(range.from);
+    setToDate(range.to);
     setPage(0);
-    setSearch("");
   }
 
   function formatLocalDate(date) {

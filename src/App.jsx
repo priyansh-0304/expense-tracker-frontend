@@ -42,6 +42,8 @@ export default function App() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [tempExportScope, setTempExportScope] = useState(exportScope);
   
+  const [dataReady, setDataReady] = useState(false);
+
   const MONTHS = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -115,7 +117,6 @@ export default function App() {
     // Restore UI
     setExpenses(prev => [...pendingDelete, ...prev]);
     setMonthlyExpenses(prev => [...pendingDelete, ...prev]);
-    setAnalyticsExpenses(prev => [...pendingDelete, ...prev]);
     setPendingDelete(null);
   };
   // ---------------------------------------------
@@ -214,10 +215,10 @@ useEffect(() => {
 
 // charts (independent)
 useEffect(() => {
-  if (authenticated) {
+  if (authenticated && dataReady) {
     fetchAnalyticsExpenses();
   }
-}, [authenticated]);
+}, [authenticated, dataReady]);
 
 // insights (month-based)
 useEffect(() => {
@@ -225,6 +226,14 @@ useEffect(() => {
     fetchMonthlyExpenses();
   }
 }, [authenticated, selectedMonth, selectedYear]);
+
+// 🔑 Keep charts in sync with real data
+useEffect(() => {
+  if (!authenticated) return;
+
+  // whenever expenses change, re-sync analytics
+  fetchAnalyticsExpenses();
+}, [expenses.length]);
 
   // ---------------- SEARCH FILTERING + KEYBOARD SHORTCUTS ----------------
   const searchedExpenses = expenses.filter((e) =>
@@ -317,6 +326,7 @@ useEffect(() => {
 
       setExpenses(Array.isArray(res.data?.content) ? res.data.content : []);
       setTotalPages(Number.isInteger(res.data?.totalPages) ? res.data.totalPages : 0);
+      setDataReady(true);
     } catch (err) {
       console.error("fetchExpenses failed:", err);
 
@@ -391,8 +401,9 @@ useEffect(() => {
       await api.post("/expenses", expense);
 
       await fetchExpenses();
+      await fetchMonthlyExpenses();
       await fetchAnalyticsExpenses();
-      await fetchMonthlyExpenses(); // 🔑 single source of truth
+
     } catch (err) {
       console.error("Add expense failed:", err);
     }
@@ -405,7 +416,6 @@ useEffect(() => {
     // 1. Optimistically remove from UI
     setExpenses(prev => prev.filter(e => e.id !== id));
     setMonthlyExpenses(prev => prev.filter(e => e.id !== id));
-    setAnalyticsExpenses(prev => prev.filter(e => e.id !== id));
 
     // 2. Save for undo (same state as bulk delete)
     setPendingDelete([deleted]);
@@ -414,6 +424,7 @@ useEffect(() => {
     deleteTimeoutRef.current = setTimeout(async () => {
       try {
         await api.delete(`/expenses/${id}`);
+        await fetchAnalyticsExpenses(); // ✅ backend truth
         setPendingDelete(null);
       } catch (err) {
         console.error("Delete failed", err);
@@ -432,7 +443,6 @@ useEffect(() => {
     setMonthlyExpenses((prev) =>
       prev.map((e) => (e.id === expense.id ? res.data : e))
     );
-    fetchAnalyticsExpenses();
     setEditingExpense(null);
   };
 

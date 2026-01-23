@@ -489,38 +489,48 @@ export default function App() {
 
             <div className="flex justify-center gap-3 mb-4 flex-wrap items-center">
               {[
-                { label: "Today", key: "today", icon: "🕒" },
-                { label: "This Week", key: "week", icon: "📅" },
-                { label: "This Month", key: "month", icon: "🗓️" },
-                { label: "Last 30 Days", key: "30days", icon: "📈" },
-              ].map(({ label, key, icon }) => {
-                const isActive = activeQuickFilter === key;
-
-                return (
+                { label: "Today", icon: "🕒" },
+                { label: "This Week", icon: "📅" },
+                { label: "This Month", icon: "🗓️" },
+                { label: "Last 30 Days", icon: "📈" },
+              ].map(({ label, icon }) => (
+                <div key={label} className="relative group">
                   <button
-                    key={key}
-                    onClick={() => applyQuickFilter(key)}
-                    className={`
+                    disabled
+                    className="
                       flex items-center gap-2
                       px-5 py-2
                       rounded-full
                       border
                       text-sm font-medium
-                      shadow-sm
-                      transition-all
-                      ${
-                        isActive
-                          ? "bg-purple-600 text-white border-purple-600"
-                          : "bg-white text-gray-800 border-gray-200 hover:bg-purple-50 hover:border-purple-300"
-                      }
-                    `}
+                      bg-gray-100
+                      text-gray-400
+                      border-gray-200
+                      cursor-not-allowed
+                    "
                   >
                     <span className="text-base">{icon}</span>
                     {label}
                   </button>
-                );
-              })}
 
+                  {/* Tooltip */}
+                  <div
+                    className="
+                      absolute -top-9 left-1/2 -translate-x-1/2
+                      whitespace-nowrap
+                      bg-black text-white text-xs
+                      px-3 py-1 rounded
+                      opacity-0 group-hover:opacity-100
+                      transition-opacity
+                      pointer-events-none
+                    "
+                  >
+                    Coming soon
+                  </div>
+                </div>
+              ))}
+
+              {/* Clear still works */}
               <button
                 onClick={() => {
                   setActiveQuickFilter(null);

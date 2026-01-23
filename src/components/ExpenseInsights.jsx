@@ -5,7 +5,13 @@ import {
 } from "lucide-react";
 
 export default function ExpenseInsights({ expenses }) {
-  if (!expenses || expenses.length === 0) {
+  // 🔑 1. Not loaded yet → keep component mounted
+  if (!Array.isArray(expenses)) {
+    return null;
+  }
+
+  // 🔑 2. Loaded but empty → show empty state
+  if (expenses.length === 0) {
     return (
       <div className="bg-white border border-gray-200 rounded-xl p-4 text-center text-gray-500">
         <p className="text-sm font-medium">No insights yet</p>
@@ -29,8 +35,9 @@ export default function ExpenseInsights({ expenses }) {
     (a, b) => b[1] - a[1]
   )[0];
 
-  const largestExpense = expenses.reduce((max, e) =>
-    e.amount > max.amount ? e : max
+  const largestExpense = expenses.reduce(
+    (max, e) => (e.amount > max.amount ? e : max),
+    expenses[0]
   );
 
   const lastMonthTotal = 0;

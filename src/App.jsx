@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import api from "./api";
 
 import ExpenseList from "./components/ExpenseList";
@@ -19,11 +18,9 @@ export default function App() {
   const [analyticsExpenses, setAnalyticsExpenses] = useState([]);
 
   const [totalPages, setTotalPages] = useState(0);
-
   const [authenticated, setAuthenticated] = useState(false);
-  const [initializing, setInitializing] = useState(true); // backend check
-
-  const [loading, setLoading] = useState(false); // data fetching
+  const [initializing, setInitializing] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [search, setSearch] = useState("");
 
@@ -38,24 +35,16 @@ export default function App() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const deleteTimeoutRef = useRef(null);
 
-  const [exportScope, setExportScope] = useState("view"); 
+  const [exportScope, setExportScope] = useState("view");
   const [showExportModal, setShowExportModal] = useState(false);
   const [tempExportScope, setTempExportScope] = useState(exportScope);
-  
-  const [dataReady, setDataReady] = useState(false);
 
   const MONTHS = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
   ];
 
-  useEffect(() => {
-    console.log("TABLE:", expenses.length);
-    console.log("ANALYTICS:", analyticsExpenses.length);
-    console.log("MONTHLY:", monthlyExpenses.length);
-  }, [expenses, analyticsExpenses, monthlyExpenses]);
-
-  // ---------------- FILTER + SORT ----------------
+  // FILTER + SORT
   const [filterCategory, setFilterCategory] = useState(
     () => localStorage.getItem("filterCategory") || "ALL"
   );
@@ -63,130 +52,22 @@ export default function App() {
     () => localStorage.getItem("sortBy") || "DATE_DESC"
   );
 
-  // ---------------------------------------------
-  const toggleSelectExpense = (id) => {
-    setSelectedExpenseIds((prev) =>
-      prev.includes(id)
-        ? prev.filter((x) => x !== id)
-        : [...prev, id]
-    );
-  };
-
-  const clearSelection = () => {
-    setSelectedExpenseIds([]);
-  };
-  // ---------------------------------------------
-  const bulkDeleteExpenses = () => {
-    if (selectedExpenseIds.length === 0) return;
-
-    const deleted = expenses.filter(e =>
-      selectedExpenseIds.includes(e.id)
-    );
-
-    // 1. Optimistically remove from LIST + MONTHLY UI only
-    setExpenses(prev =>
-      prev.filter(e => !selectedExpenseIds.includes(e.id))
-    );
-
-    setMonthlyExpenses(prev =>
-      prev.filter(e => !selectedExpenseIds.includes(e.id))
-    );
-
-    // ❌ DO NOT touch analytics here
-
-    // 2. Save for undo
-    setPendingDelete(deleted);
-
-    // 3. Delay backend delete
-    deleteTimeoutRef.current = setTimeout(async () => {
-      try {
-        await Promise.all(
-          deleted.map(e => api.delete(`/expenses/${e.id}`))
-        );
-
-        // ✅ Re-sync analytics from backend truth
-        fetchAnalyticsExpenses();
-
-        setPendingDelete(null);
-      } catch (err) {
-        console.error("Bulk delete failed", err);
-      }
-    }, 5000);
-  };
-  // ---------------------------------------------
-  const undoBulkDelete = () => {
-    if (!pendingDelete) return;
-
-    // Cancel backend delete
-    clearTimeout(deleteTimeoutRef.current);
-
-    // Restore UI
-    setExpenses(prev => [...pendingDelete, ...prev]);
-    setMonthlyExpenses(prev => [...pendingDelete, ...prev]);
-    setPendingDelete(null);
-  };
-  // ---------------------------------------------
-  const fetchAnalyticsExpenses = async () => {
-    try {
-      const today = new Date();
-      const from = new Date();
-      from.setDate(today.getDate() - 14);
-
-      const res = await api.get("/expenses/filter", {
-        params: {
-          from: from.toISOString().split("T")[0],
-          to: today.toISOString().split("T")[0],
-          page: 0,
-          size: 1000,          // intentionally large
-          sortBy: "createdAt",
-          sortDir: "asc",
-        },
-      });
-
-      // 🔑 NORMALIZE DATE FOR CHARTS
-      const normalized = Array.isArray(res.data?.content)
-        ? res.data.content.map((e) => ({
-            ...e,
-            date: new Date(e.date), // ← this is what resurrects the charts
-          }))
-        : [];
-
-      setAnalyticsExpenses(normalized);
-    } catch (err) {
-      console.error("fetchAnalyticsExpenses failed:", err);
-
-      // keep UI stable
-      setAnalyticsExpenses([]);
-    }
-  };
-
-  // ---------------- PAGINATION ----------------
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 10;
 
-  useEffect(() => {
-    localStorage.setItem("filterCategory", filterCategory);
-  }, [filterCategory]);
+  const searchedExpenses = expenses.filter((e) =>
+    e.title?.toLowerCase().includes(search.toLowerCase())
+  );
 
-  useEffect(() => {
-    localStorage.setItem("sortBy", sortBy);
-  }, [sortBy]);
-
-  // ---------------- BACKEND CHECK ----------------
-  const verifyBackend = async () => {
-    await api.get("/actuator/health");
-  };
-
+  // Backend verification and login
   useEffect(() => {
     const token = localStorage.getItem("jwt");
-
     if (!token) {
       setAuthenticated(false);
       setInitializing(false);
       return;
     }
-
-    verifyBackend()
+    api.get("/actuator/health")
       .then(() => setAuthenticated(true))
       .catch(() => {
         localStorage.removeItem("jwt");
@@ -195,47 +76,39 @@ export default function App() {
       .finally(() => setInitializing(false));
   }, []);
 
-  // 🔹 TABLE (pagination + filters only)
+  // Table data fetch (pagination and filters)
   useEffect(() => {
     if (!authenticated) return;
     fetchExpenses();
   }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
 
-  // 🔹 ANALYTICS (independent, last 14 days)
-  useEffect(() => {
-    if (!authenticated) return;
-    fetchAnalyticsExpenses();
-  }, [authenticated]);
-
-  // 🔹 INSIGHTS (month-based only)
+  // Monthly data fetch (for insights)
   useEffect(() => {
     if (!authenticated) return;
     fetchMonthlyExpenses();
   }, [authenticated, selectedMonth, selectedYear]);
 
-  // ---------------- SEARCH FILTERING + KEYBOARD SHORTCUTS ----------------
-  const searchedExpenses = expenses.filter((e) =>
-    e.title?.toLowerCase().includes(search.toLowerCase())
-  );
+  // Persist filter/sort to localStorage
+  useEffect(() => {
+    localStorage.setItem("filterCategory", filterCategory);
+  }, [filterCategory]);
+  useEffect(() => {
+    localStorage.setItem("sortBy", sortBy);
+  }, [sortBy]);
 
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
       const isMac = navigator.platform.toUpperCase().includes("MAC");
       const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
-
-      // ⌘/Ctrl + A → select all visible expenses
       if (cmdOrCtrl && e.key.toLowerCase() === "a") {
         e.preventDefault();
         setSelectedExpenseIds(searchedExpenses.map((e) => e.id));
       }
-
-      // ⌘/Ctrl + Z → undo bulk delete (only if pending)
       if (cmdOrCtrl && e.key.toLowerCase() === "z" && pendingDelete) {
         e.preventDefault();
         undoBulkDelete();
       }
-
-      // ⌘/Ctrl + Backspace → bulk delete selected
       if (
         cmdOrCtrl &&
         e.key === "Backspace" &&
@@ -245,25 +118,20 @@ export default function App() {
         bulkDeleteExpenses();
         clearSelection();
       }
-
-      // Esc → clear selection
       if (e.key === "Escape") {
         clearSelection();
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [searchedExpenses, pendingDelete, selectedExpenseIds]);
 
-  // ---------------- API ----------------
-  const fetchExpenses = async () => {
+  // ---- API ----
+  async function fetchExpenses() {
     setLoading(true);
-
     try {
       let sortField = "createdAt";
       let sortDir = "desc";
-
       if (sortBy === "DATE_ASC") {
         sortDir = "asc";
       } else if (sortBy === "AMOUNT_DESC") {
@@ -273,93 +141,70 @@ export default function App() {
         sortField = "amount";
         sortDir = "asc";
       }
-
       const params = {
         page,
         size: PAGE_SIZE,
         sortBy: sortField,
-        sortDir,
+        sortDir
       };
-
-      // ✅ only attach when meaningful
       if (filterCategory && filterCategory !== "ALL") {
         params.category = filterCategory;
       }
-
       if (fromDate) {
         params.from =
           typeof fromDate === "string"
             ? fromDate
             : new Date(fromDate).toISOString().split("T")[0];
       }
-
       if (toDate) {
         params.to =
           typeof toDate === "string"
             ? toDate
             : new Date(toDate).toISOString().split("T")[0];
       }
-
       const res = await api.get("/expenses/filter", { params });
-
       setExpenses(Array.isArray(res.data?.content) ? res.data.content : []);
       setTotalPages(Number.isInteger(res.data?.totalPages) ? res.data.totalPages : 0);
-      setDataReady(true);
     } catch (err) {
       console.error("fetchExpenses failed:", err);
-
-      // 🔑 prevent UI freeze
       setExpenses([]);
       setTotalPages(0);
     } finally {
-      // 🔑 ALWAYS release loading state
       setLoading(false);
     }
-  };
-  // ---------------- MONTHLY EXPENSES ----------------
-  const getDateRange = (type) => {
+  }
+
+  function getDateRange(type) {
     const today = new Date();
     let from = null;
     let to = today;
-
     switch (type) {
       case "today":
         from = today;
         break;
-
       case "week":
         from = new Date();
         from.setDate(today.getDate() - 6);
         break;
-
       case "month":
         from = new Date(today.getFullYear(), today.getMonth(), 1);
         break;
-
       case "30days":
         from = new Date();
         from.setDate(today.getDate() - 29);
         break;
-
       default:
         return { from: null, to: null };
     }
-
     return {
       from: from.toISOString().split("T")[0],
-      to: to.toISOString().split("T")[0],
+      to: to.toISOString().split("T")[0]
     };
-  };
+  }
 
-  const fetchMonthlyExpenses = async () => {
-    const from = new Date(selectedYear, selectedMonth, 1)
-      .toISOString()
-      .split("T")[0];
-
-    const to = new Date(selectedYear, selectedMonth + 1, 0)
-      .toISOString()
-      .split("T")[0];
-
+  async function fetchMonthlyExpenses() {
+    const from = new Date(selectedYear, selectedMonth, 1).toISOString().split("T")[0];
+    const to = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split("T")[0];
     const res = await api.get("/expenses/filter", {
       params: {
         page: 0,
@@ -367,38 +212,58 @@ export default function App() {
         sortBy: "createdAt",
         sortDir: "desc",
         from,
-        to,
-      },
+        to
+      }
     });
-
     setMonthlyExpenses(res.data.content || []);
-  };
+  }
 
-  const addExpense = async (expense) => {
+  async function fetchAnalyticsExpenses() {
+    try {
+      const today = new Date();
+      const from = new Date();
+      from.setDate(today.getDate() - 14);
+      const res = await api.get("/expenses/filter", {
+        params: {
+          from: from.toISOString().split("T")[0],
+          to: today.toISOString().split("T")[0],
+          page: 0,
+          size: 1000,
+          sortBy: "createdAt",
+          sortDir: "asc"
+        }
+      });
+      const normalized = Array.isArray(res.data?.content)
+        ? res.data.content.map((e) => ({
+            ...e,
+            date: new Date(e.date)
+          }))
+        : [];
+      setAnalyticsExpenses(normalized);
+    } catch (err) {
+      console.error("fetchAnalyticsExpenses failed:", err);
+      setAnalyticsExpenses([]);
+    }
+  }
+
+  // ---- CRUD and analytics fetch triggers ----
+  async function addExpense(expense) {
     try {
       await api.post("/expenses", expense);
-
       await fetchExpenses();
       await fetchMonthlyExpenses();
-      await fetchAnalyticsExpenses(); // once, after backend truth
-
+      await fetchAnalyticsExpenses();
     } catch (err) {
       console.error("Add expense failed:", err);
     }
-  };
+  }
 
-  const deleteExpense = (id) => {
+  function deleteExpense(id) {
     const deleted = expenses.find(e => e.id === id);
     if (!deleted) return;
-
-    // 1. Optimistically remove from UI
     setExpenses(prev => prev.filter(e => e.id !== id));
     setMonthlyExpenses(prev => prev.filter(e => e.id !== id));
-
-    // 2. Save for undo (same state as bulk delete)
     setPendingDelete([deleted]);
-
-    // 3. Delay backend delete
     deleteTimeoutRef.current = setTimeout(async () => {
       try {
         await api.delete(`/expenses/${id}`);
@@ -408,51 +273,68 @@ export default function App() {
       } catch (err) {
         console.error("Delete failed", err);
       }
-    }, 5000); // ⏱ 5 seconds
-  };
+    }, 5000);
+  }
 
-  const updateExpense = async (expense) => {
+  async function updateExpense(expense) {
     const res = await api.put(`/expenses/${expense.id}`, expense);
-
     setExpenses((prev) =>
       prev.map((e) => (e.id === expense.id ? res.data : e))
     );
-
-    // 🔹 update analytics data too
     setMonthlyExpenses((prev) =>
       prev.map((e) => (e.id === expense.id ? res.data : e))
     );
     setEditingExpense(null);
-  };
+    await fetchAnalyticsExpenses();
+  }
 
-  // ---------------- LOGOUT ----------------
-  const handleLogout = () => {
+  function toggleSelectExpense(id) {
+    setSelectedExpenseIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
+    );
+  }
+  function clearSelection() {
+    setSelectedExpenseIds([]);
+  }
+  function bulkDeleteExpenses() {
+    if (selectedExpenseIds.length === 0) return;
+    const deleted = expenses.filter(e =>
+      selectedExpenseIds.includes(e.id)
+    );
+    setExpenses(prev =>
+      prev.filter(e => !selectedExpenseIds.includes(e.id))
+    );
+    setMonthlyExpenses(prev =>
+      prev.filter(e => !selectedExpenseIds.includes(e.id))
+    );
+    setPendingDelete(deleted);
+    deleteTimeoutRef.current = setTimeout(async () => {
+      try {
+        await Promise.all(
+          deleted.map(e => api.delete(`/expenses/${e.id}`))
+        );
+        await fetchAnalyticsExpenses();
+        setPendingDelete(null);
+      } catch (err) {
+        console.error("Bulk delete failed", err);
+      }
+    }, 5000);
+  }
+  function undoBulkDelete() {
+    if (!pendingDelete) return;
+    clearTimeout(deleteTimeoutRef.current);
+    setExpenses(prev => [...pendingDelete, ...prev]);
+    setMonthlyExpenses(prev => [...pendingDelete, ...prev]);
+    setPendingDelete(null);
+  }
+
+  function handleLogout() {
     localStorage.removeItem("jwt");
     setAuthenticated(false);
     setExpenses([]);
     setEditingExpense(null);
-  };
-
-  // ---------------- UI STATES ----------------
-  if (initializing) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Checking backend…</p>
-      </div>
-    );
-  }
-
-  if (!authenticated) {
-    return (
-      <div className="min-h-screen bg-indigo-50">
-        <Login
-          onSuccess={() => {
-            // Backend is already known to be up at this point
-            setAuthenticated(true);
-          }}
-        />
-      </div>
-    );
   }
 
   const categories = [
@@ -462,71 +344,84 @@ export default function App() {
     "Bills",
     "Entertainment",
     "Health",
-    "Other",
+    "Other"
   ];
 
-  // ---------------- EXPORT CSV ----------------
-  const exportCSV = async (scope = exportScope) => {
+  // CSV Export
+  async function exportCSV(scope = exportScope) {
     let data = [];
-
     if (scope === "view") {
       data = searchedExpenses;
     }
-
     if (scope === "month") {
       data = monthlyExpenses;
     }
-
     if (scope === "all") {
-      // 🔑 fetch EVERYTHING once, bypass pagination
       const res = await api.get("/expenses/filter", {
         params: {
           page: 0,
-          size: 10000, // big enough
+          size: 10000,
           sortBy: "createdAt",
-          sortDir: "desc",
-        },
+          sortDir: "desc"
+        }
       });
-
       data = res.data.content || [];
     }
-
     if (!data.length) return;
-
     const headers = [
       "Title",
       "Category",
       "Amount",
       "Date",
       "Payment Method",
-      "Notes",
+      "Notes"
     ];
-
     const rows = data.map((e) => [
       `"${e.title || ""}"`,
       `"${e.category}"`,
       e.amount,
       e.date,
       `"${e.paymentMethod || ""}"`,
-      `"${e.notes || ""}"`,
+      `"${e.notes || ""}"`
     ]);
-
     const csv =
       [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
-
     const link = document.createElement("a");
     link.href = url;
     link.download = `expenses_${exportScope}_${new Date()
       .toISOString()
       .split("T")[0]}.csv`;
     link.click();
-  };
+  }
 
-  // ---------------- RENDER ----------------
-  
+  // ---- Analytics fetch on login only ----
+  useEffect(() => {
+    if (!authenticated) return;
+    fetchAnalyticsExpenses();
+  }, [authenticated]);
+
+  // ---- UI ----
+  if (initializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Checking backend…</p>
+      </div>
+    );
+  }
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen bg-indigo-50">
+        <Login
+          onSuccess={() => {
+            setAuthenticated(true);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
@@ -537,7 +432,6 @@ export default function App() {
             </h1>
             <p className="text-gray-600">Manage your spending wisely</p>
           </div>
-
           <div>
             <button
               onClick={() => {
@@ -548,7 +442,6 @@ export default function App() {
             >
               Export CSV
             </button>
-
             <button
               onClick={handleLogout}
               className="ml-3 bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-xl"
@@ -557,7 +450,6 @@ export default function App() {
             </button>
           </div>
         </header>
-
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="space-y-6">
             <ExpenseForm onAddExpense={addExpense} categories={categories} />
@@ -565,7 +457,6 @@ export default function App() {
             <ExpenseAlerts expenses={monthlyExpenses} budget={3000} />
             <ExpenseSummary expenses={expenses} />
           </div>
-
           <div className="lg:col-span-2 bg-white/80 rounded-2xl p-6 shadow">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Recent Expenses</h2>
@@ -580,7 +471,6 @@ export default function App() {
                 className="w-64 px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
-
             <div className="flex gap-3 mb-4">
               <select
                 value={filterCategory}
@@ -597,7 +487,6 @@ export default function App() {
                   </option>
                 ))}
               </select>
-
               <select
                 value={sortBy}
                 onChange={(e) => {
@@ -612,16 +501,14 @@ export default function App() {
                 <option value="AMOUNT_ASC">Lowest amount</option>
               </select>
             </div>
-
             <div className="flex justify-center gap-3 mb-4 flex-wrap items-center">
               {[
                 { label: "Today", key: "today", icon: "🕒" },
                 { label: "This Week", key: "week", icon: "📅" },
                 { label: "This Month", key: "month", icon: "🗓️" },
-                { label: "Last 30 Days", key: "30days", icon: "📈" },
+                { label: "Last 30 Days", key: "30days", icon: "📈" }
               ].map(({ label, key, icon }) => {
                 const isActive = activeQuickFilter === key;
-
                 if (key === "month") {
                   return (
                     <button
@@ -630,7 +517,6 @@ export default function App() {
                         const now = new Date();
                         setSelectedMonth(now.getMonth());
                         setSelectedYear(now.getFullYear());
-
                         const { from, to } = getDateRange("month");
                         setFromDate(from);
                         setToDate(to);
@@ -657,7 +543,6 @@ export default function App() {
                     </button>
                   );
                 }
-
                 return (
                   <button
                     key={key}
@@ -688,7 +573,6 @@ export default function App() {
                   </button>
                 );
               })}
-
               <button
                 onClick={() => {
                   setFromDate(null);
@@ -716,7 +600,6 @@ export default function App() {
                 <span className="text-sm text-purple-700">
                   {selectedExpenseIds.length} selected
                 </span>
-
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
@@ -727,7 +610,6 @@ export default function App() {
                   >
                     Delete selected
                   </button>
-
                   <button
                     onClick={clearSelection}
                     className="text-sm px-3 py-1 rounded-lg border"
@@ -737,7 +619,6 @@ export default function App() {
                 </div>
               </div>
             )}
-
             {loading ? (
               <ExpenseListSkeleton rows={5} />
             ) : searchedExpenses.length === 0 ? (
@@ -754,7 +635,6 @@ export default function App() {
                 onToggleSelect={toggleSelectExpense}
               />
             )}
-
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 mt-6">
                 <button
@@ -764,11 +644,9 @@ export default function App() {
                 >
                   Prev
                 </button>
-
                 <span className="text-sm text-gray-600">
                   Page {page + 1} of {totalPages}
                 </span>
-
                 <button
                   disabled={page === totalPages - 1}
                   onClick={() => setPage((p) => p + 1)}
@@ -778,20 +656,13 @@ export default function App() {
                 </button>
               </div>
             )}
-            
-            {monthlyExpenses.length > 0 && (
-              <div className="sticky top-6 z-10 mt-6 mb-24">
-                <ExpenseInsights expenses={monthlyExpenses} />
-              </div>
-            )}
-
+            <div className="sticky top-6 z-10 mt-6 mb-24">
+              <ExpenseInsights expenses={monthlyExpenses} />
+            </div>
           </div>
         </div>
-        
         <ExpenseCharts expenses={analyticsExpenses} loading={loading} />
-        
       </div>
-
       {editingExpense && (
         <EditExpenseModal
           expense={editingExpense}
@@ -799,7 +670,6 @@ export default function App() {
           onClose={() => setEditingExpense(null)}
         />
       )}
-
       {pendingDelete && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-4 z-50">
           <span>{pendingDelete.length} expenses deleted</span>
@@ -815,7 +685,6 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-5">
             <h3 className="text-lg font-semibold">Export Expenses</h3>
-
             <div className="space-y-3">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -832,7 +701,6 @@ export default function App() {
                   </p>
                 </span>
               </label>
-
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="radio"
@@ -848,7 +716,6 @@ export default function App() {
                   </p>
                 </span>
               </label>
-
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="radio"
@@ -865,7 +732,6 @@ export default function App() {
                 </span>
               </label>
             </div>
-
             <div className="flex justify-end gap-3 pt-4">
               <button
                 onClick={() => setShowExportModal(false)}
@@ -873,13 +739,10 @@ export default function App() {
               >
                 Cancel
               </button>
-
               <button
                 onClick={() => {
                   setExportScope(tempExportScope);
                   setShowExportModal(false);
-
-                  // pass scope explicitly to avoid stale state
                   exportCSV(tempExportScope);
                 }}
                 className="px-5 py-2 rounded-lg bg-green-600 text-white text-sm hover:bg-green-700"

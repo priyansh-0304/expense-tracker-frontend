@@ -36,24 +36,22 @@ export default function ExpenseCharts({ expenses }) {
   const [chartType, setChartType] = useState("pie");
 
   // ✅ FIX: robust empty check (NO CRASH, REACTIVE)
-  // 🔑 1. Not loaded yet → render nothing (component stays mounted)
-if (!Array.isArray(expenses)) {
-  return null;
-}
+  const hasData =
+    Array.isArray(expenses) &&
+    expenses.some((e) => Number(e.amount) > 0);
 
-// 🔑 2. Loaded but empty → show empty state
-if (expenses.length === 0) {
-  return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow p-8 border border-white/20 text-center">
-      <p className="text-sm font-medium text-gray-700">
-        No expense data yet
-      </p>
-      <p className="text-xs mt-1 text-gray-500">
-        Add expenses to see charts and trends
-      </p>
-    </div>
-  );
-}
+  if (!hasData) {
+    return (
+      <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow p-8 border border-white/20 text-center">
+        <p className="text-sm font-medium text-gray-700">
+          No expense data yet
+        </p>
+        <p className="text-xs mt-1 text-gray-500">
+          Add expenses to see charts and trends
+        </p>
+      </div>
+    );
+  }
 
   /* ---- CATEGORY TOTALS ---- */
   const categoryTotals = expenses.reduce((acc, expense) => {

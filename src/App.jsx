@@ -49,6 +49,12 @@ export default function App() {
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
 
+  useEffect(() => {
+    console.log("TABLE:", expenses.length);
+    console.log("ANALYTICS:", analyticsExpenses.length);
+    console.log("MONTHLY:", monthlyExpenses.length);
+  }, [expenses, analyticsExpenses, monthlyExpenses]);
+
   // ---------------- FILTER + SORT ----------------
   const [filterCategory, setFilterCategory] = useState(
     () => localStorage.getItem("filterCategory") || "ALL"
@@ -188,12 +194,24 @@ export default function App() {
       })
       .finally(() => setInitializing(false));
   }, []);
-  {/*}
+
+  // table data
+useEffect(() => {
+  if (authenticated) {
+    fetchExpenses();
+  }
+}, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
   useEffect(() => {
-    if (authenticated) {
-      fetchExpenses();
-      fetchMonthlyExpenses();
-    }
+    if (!authenticated) return;
+
+    // 1️⃣ Table (paginated / filtered)
+    fetchExpenses();
+
+    // 2️⃣ Charts (analytics)
+    fetchAnalyticsExpenses();
+
+    // 3️⃣ Insights (month-based)
+    fetchMonthlyExpenses();
   }, [
     authenticated,
     page,
@@ -204,36 +222,12 @@ export default function App() {
     selectedMonth,
     selectedYear,
   ]);
-  */}
-
-  // table data
-useEffect(() => {
-  if (authenticated) {
-    fetchExpenses();
-  }
-}, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
-
-// charts (independent)
-useEffect(() => {
-  if (authenticated && dataReady) {
-    fetchAnalyticsExpenses();
-  }
-}, [authenticated, dataReady]);
-
 // insights (month-based)
 useEffect(() => {
   if (authenticated) {
     fetchMonthlyExpenses();
   }
 }, [authenticated, selectedMonth, selectedYear]);
-
-// 🔑 Keep charts in sync with real data
-useEffect(() => {
-  if (!authenticated) return;
-
-  // whenever expenses change, re-sync analytics
-  fetchAnalyticsExpenses();
-}, [expenses.length]);
 
   // ---------------- SEARCH FILTERING + KEYBOARD SHORTCUTS ----------------
   const searchedExpenses = expenses.filter((e) =>
@@ -401,8 +395,8 @@ useEffect(() => {
       await api.post("/expenses", expense);
 
       await fetchExpenses();
-      await fetchMonthlyExpenses();
       await fetchAnalyticsExpenses();
+      await fetchMonthlyExpenses();
 
     } catch (err) {
       console.error("Add expense failed:", err);

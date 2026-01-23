@@ -195,39 +195,23 @@ export default function App() {
       .finally(() => setInitializing(false));
   }, []);
 
-  // table data
-useEffect(() => {
-  if (authenticated) {
-    fetchExpenses();
-  }
-}, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
+  // 🔹 TABLE (pagination + filters only)
   useEffect(() => {
     if (!authenticated) return;
-
-    // 1️⃣ Table (paginated / filtered)
     fetchExpenses();
+  }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
 
-    // 2️⃣ Charts (analytics)
+  // 🔹 ANALYTICS (independent, last 14 days)
+  useEffect(() => {
+    if (!authenticated) return;
     fetchAnalyticsExpenses();
+  }, [authenticated]);
 
-    // 3️⃣ Insights (month-based)
+  // 🔹 INSIGHTS (month-based only)
+  useEffect(() => {
+    if (!authenticated) return;
     fetchMonthlyExpenses();
-  }, [
-    authenticated,
-    page,
-    filterCategory,
-    sortBy,
-    fromDate,
-    toDate,
-    selectedMonth,
-    selectedYear,
-  ]);
-// insights (month-based)
-useEffect(() => {
-  if (authenticated) {
-    fetchMonthlyExpenses();
-  }
-}, [authenticated, selectedMonth, selectedYear]);
+  }, [authenticated, selectedMonth, selectedYear]);
 
   // ---------------- SEARCH FILTERING + KEYBOARD SHORTCUTS ----------------
   const searchedExpenses = expenses.filter((e) =>
@@ -395,8 +379,8 @@ useEffect(() => {
       await api.post("/expenses", expense);
 
       await fetchExpenses();
-      await fetchAnalyticsExpenses();
       await fetchMonthlyExpenses();
+      await fetchAnalyticsExpenses(); // once, after backend truth
 
     } catch (err) {
       console.error("Add expense failed:", err);
@@ -418,7 +402,8 @@ useEffect(() => {
     deleteTimeoutRef.current = setTimeout(async () => {
       try {
         await api.delete(`/expenses/${id}`);
-        await fetchAnalyticsExpenses(); // ✅ backend truth
+        await fetchMonthlyExpenses();
+        await fetchAnalyticsExpenses();
         setPendingDelete(null);
       } catch (err) {
         console.error("Delete failed", err);

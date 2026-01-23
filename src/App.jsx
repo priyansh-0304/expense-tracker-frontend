@@ -202,10 +202,18 @@ export default function App() {
     }
   }
 
+  function formatLocalDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
   function getDateRange(type) {
     const today = new Date();
     let from = null;
     let to = today;
+
     switch (type) {
       case "today":
         from = today;
@@ -224,9 +232,10 @@ export default function App() {
       default:
         return { from: null, to: null };
     }
+
     return {
-      from: from.toISOString().split("T")[0],
-      to: to.toISOString().split("T")[0]
+      from: formatLocalDate(from),
+      to: formatLocalDate(to),
     };
   }
 

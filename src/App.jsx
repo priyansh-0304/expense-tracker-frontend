@@ -14,9 +14,7 @@ import ExpenseListSkeleton from "./components/ExpenseListSkeleton";
 
 export default function App() {
   const [expenses, setExpenses] = useState([]);
-  const [monthlyExpenses, setMonthlyExpenses] = useState([]);
-  const [analyticsExpenses, setAnalyticsExpenses] = useState([]);
-
+  
   const [totalPages, setTotalPages] = useState(0);
   const [authenticated, setAuthenticated] = useState(false);
   const [initializing, setInitializing] = useState(true);
@@ -38,6 +36,21 @@ export default function App() {
   const [exportScope, setExportScope] = useState("view");
   const [showExportModal, setShowExportModal] = useState(false);
   const [tempExportScope, setTempExportScope] = useState(exportScope);
+
+  const monthlyExpenses = expenses.filter((e) => {
+    const d = new Date(e.date);
+    return (
+      d.getMonth() === selectedMonth &&
+      d.getFullYear() === selectedYear
+    );
+  });
+
+  const analyticsExpenses = expenses.filter((e) => {
+    const d = new Date(e.date);
+    const now = new Date();
+    const diff = (now - d) / (1000 * 60 * 60 * 24);
+    return diff <= 14;
+  });
 
   const MONTHS = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -81,12 +94,6 @@ export default function App() {
     if (!authenticated) return;
     fetchExpenses();
   }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
-
-  // Monthly data fetch (for insights)
-  useEffect(() => {
-    if (!authenticated) return;
-    fetchMonthlyExpenses();
-  }, [authenticated, selectedMonth, selectedYear]);
 
   // Persist filter/sort to localStorage
   useEffect(() => {
@@ -202,78 +209,15 @@ export default function App() {
     };
   }
 
-  async function fetchMonthlyExpenses() {
-    const from = new Date(selectedYear, selectedMonth, 1).toISOString().split("T")[0];
-    const to = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split("T")[0];
-    const res = await api.get("/expenses/filter", {
-      params: {
-        page: 0,
-        size: 1000,
-        sortBy: "createdAt",
-        sortDir: "desc",
-        from,
-        to
-      }
-    });
-    setMonthlyExpenses(res.data.content || []);
-  }
-
-  async function fetchAnalyticsExpenses() {
-    try {
-      const today = new Date();
-      const from = new Date();
-      from.setDate(today.getDate() - 14);
-      const res = await api.get("/expenses/filter", {
-        params: {
-          from: from.toISOString().split("T")[0],
-          to: today.toISOString().split("T")[0],
-          page: 0,
-          size: 1000,
-          sortBy: "createdAt",
-          sortDir: "asc"
-        }
-      });
-      const normalized = Array.isArray(res.data?.content)
-        ? res.data.content.map((e) => ({
-            ...e,
-            date: new Date(e.date)
-          }))
-        : [];
-      setAnalyticsExpenses(normalized);
-    } catch (err) {
-      console.error("fetchAnalyticsExpenses failed:", err);
-      setAnalyticsExpenses([]);
-    }
-  }
-
   // ---- CRUD and analytics fetch triggers ----
   async function addExpense(expense) {
-    try {
-      await api.post("/expenses", expense);
-      await fetchExpenses();
-      await fetchMonthlyExpenses();
-      await fetchAnalyticsExpenses();
-    } catch (err) {
-      console.error("Add expense failed:", err);
-    }
+    const res = await api.post("/expenses", expense);
+    setExpenses((prev) => [res.data, ...prev]);
   }
 
-  function deleteExpense(id) {
-    const deleted = expenses.find(e => e.id === id);
-    if (!deleted) return;
-    setExpenses(prev => prev.filter(e => e.id !== id));
-    setMonthlyExpenses(prev => prev.filter(e => e.id !== id));
-    setPendingDelete([deleted]);
-    deleteTimeoutRef.current = setTimeout(async () => {
-      try {
-        await api.delete(`/expenses/${id}`);
-        await fetchMonthlyExpenses();
-        await fetchAnalyticsExpenses();
-        setPendingDelete(null);
-      } catch (err) {
-        console.error("Delete failed", err);
-      }
-    }, 5000);
+  async function deleteExpense(id) {
+    await api.delete(`/expenses/${id}`);
+    setExpenses((prev) => prev.filter((e) => e.id !== id));
   }
 
   async function updateExpense(expense) {
@@ -281,11 +225,7 @@ export default function App() {
     setExpenses((prev) =>
       prev.map((e) => (e.id === expense.id ? res.data : e))
     );
-    setMonthlyExpenses((prev) =>
-      prev.map((e) => (e.id === expense.id ? res.data : e))
-    );
     setEditingExpense(null);
-    await fetchAnalyticsExpenses();
   }
 
   function toggleSelectExpense(id) {
@@ -295,33 +235,21 @@ export default function App() {
         : [...prev, id]
     );
   }
+
   function clearSelection() {
     setSelectedExpenseIds([]);
   }
-  function bulkDeleteExpenses() {
-    if (selectedExpenseIds.length === 0) return;
-    const deleted = expenses.filter(e =>
-      selectedExpenseIds.includes(e.id)
+  
+  async function bulkDeleteExpenses() {
+    await Promise.all(
+      selectedExpenseIds.map((id) => api.delete(`/expenses/${id}`))
     );
-    setExpenses(prev =>
-      prev.filter(e => !selectedExpenseIds.includes(e.id))
+    setExpenses((prev) =>
+      prev.filter((e) => !selectedExpenseIds.includes(e.id))
     );
-    setMonthlyExpenses(prev =>
-      prev.filter(e => !selectedExpenseIds.includes(e.id))
-    );
-    setPendingDelete(deleted);
-    deleteTimeoutRef.current = setTimeout(async () => {
-      try {
-        await Promise.all(
-          deleted.map(e => api.delete(`/expenses/${e.id}`))
-        );
-        await fetchAnalyticsExpenses();
-        setPendingDelete(null);
-      } catch (err) {
-        console.error("Bulk delete failed", err);
-      }
-    }, 5000);
+    setSelectedExpenseIds([]);
   }
+
   function undoBulkDelete() {
     if (!pendingDelete) return;
     clearTimeout(deleteTimeoutRef.current);
@@ -395,12 +323,6 @@ export default function App() {
       .split("T")[0]}.csv`;
     link.click();
   }
-
-  // ---- Analytics fetch on login only ----
-  useEffect(() => {
-    if (!authenticated) return;
-    fetchAnalyticsExpenses();
-  }, [authenticated]);
 
   // ---- UI ----
   if (initializing) {

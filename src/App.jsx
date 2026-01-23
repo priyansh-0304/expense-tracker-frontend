@@ -157,14 +157,17 @@ export default function App() {
       if (filterCategory && filterCategory !== "ALL") {
         params.category = filterCategory;
       }
-      // Enforce date params when quick filter is active
-      if (activeQuickFilter) {
-        const { from, to } = getDateRange(activeQuickFilter);
-        params.from = from;
-        params.to = to;
-      } else {
-        if (fromDate) params.from = fromDate;
-        if (toDate) params.to = toDate;
+      if (fromDate) {
+        params.from =
+          typeof fromDate === "string"
+            ? fromDate
+            : new Date(fromDate).toISOString().split("T")[0];
+      }
+      if (toDate) {
+        params.to =
+          typeof toDate === "string"
+            ? toDate
+            : new Date(toDate).toISOString().split("T")[0];
       }
       const res = await api.get("/expenses/filter", { params });
       setExpenses(Array.isArray(res.data?.content) ? res.data.content : []);

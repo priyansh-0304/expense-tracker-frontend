@@ -454,6 +454,7 @@ export default function App() {
                 <option value="AMOUNT_ASC">Lowest amount</option>
               </select>
             </div>
+
             <div className="flex justify-center gap-3 mb-4 flex-wrap items-center">
               {[
                 { label: "Today", key: "today", icon: "🕒" },
@@ -463,23 +464,30 @@ export default function App() {
               ].map(({ label, key, icon }) => {
                 const isActive = activeQuickFilter === key;
 
+                const applyFilter = async (rangeKey) => {
+                  const { from, to } = getDateRange(rangeKey);
+
+                  setActiveQuickFilter(rangeKey);
+                  setFromDate(from);
+                  setToDate(to);
+                  setSearch("");
+                  setPage(0);
+
+                  // 🔑 FORCE backend sync AFTER state updates
+                  setTimeout(() => {
+                    fetchExpenses();
+                  }, 0);
+                };
+
                 if (key === "month") {
                   return (
                     <button
                       key={key}
-                      onClick={() => {
+                      onClick={async () => {
                         const now = new Date();
-
                         setSelectedMonth(now.getMonth());
                         setSelectedYear(now.getFullYear());
-
-                        const { from, to } = getDateRange("month");
-                        setFromDate(from);
-                        setToDate(to);
-
-                        setSearch("");          // ✅ IMPORTANT
-                        setPage(0);
-                        setActiveQuickFilter("month");
+                        await applyFilter("month");
                       }}
                       className={`
                         flex items-center gap-2
@@ -505,16 +513,7 @@ export default function App() {
                 return (
                   <button
                     key={key}
-                    onClick={() => {
-                      const { from, to } = getDateRange(key);
-
-                      setFromDate(from);
-                      setToDate(to);
-
-                      setSearch("");          // ✅ IMPORTANT
-                      setPage(0);
-                      setActiveQuickFilter(key);
-                    }}
+                    onClick={() => applyFilter(key)}
                     className={`
                       flex items-center gap-2
                       px-5 py-2
@@ -538,15 +537,15 @@ export default function App() {
 
               <button
                 onClick={() => {
+                  setActiveQuickFilter(null);
                   setFromDate(null);
                   setToDate(null);
-
-                  setSearch("");              // ✅ IMPORTANT
+                  setSearch("");
                   setPage(0);
 
-                  setSelectedMonth(today.getMonth());
-                  setSelectedYear(today.getFullYear());
-                  setActiveQuickFilter(null);
+                  setTimeout(() => {
+                    fetchExpenses();
+                  }, 0);
                 }}
                 className="
                   flex items-center gap-2
@@ -561,6 +560,7 @@ export default function App() {
                 Clear
               </button>
             </div>
+
             {selectedExpenseIds.length > 0 && (
               <div className="mb-4 flex items-center justify-between bg-purple-50 border border-purple-200 rounded-xl px-4 py-2">
                 <span className="text-sm text-purple-700">

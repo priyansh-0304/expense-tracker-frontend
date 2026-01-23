@@ -464,56 +464,25 @@ export default function App() {
               ].map(({ label, key, icon }) => {
                 const isActive = activeQuickFilter === key;
 
-                const applyFilter = async (rangeKey) => {
-                  const { from, to } = getDateRange(rangeKey);
-
-                  setActiveQuickFilter(rangeKey);
-                  setFromDate(from);
-                  setToDate(to);
-                  setSearch("");
-                  setPage(0);
-
-                  // 🔑 FORCE backend sync AFTER state updates
-                  setTimeout(() => {
-                    fetchExpenses();
-                  }, 0);
-                };
-
-                if (key === "month") {
-                  return (
-                    <button
-                      key={key}
-                      onClick={async () => {
-                        const now = new Date();
-                        setSelectedMonth(now.getMonth());
-                        setSelectedYear(now.getFullYear());
-                        await applyFilter("month");
-                      }}
-                      className={`
-                        flex items-center gap-2
-                        px-5 py-2
-                        rounded-full
-                        border
-                        text-sm font-medium
-                        shadow-sm
-                        transition-all
-                        ${
-                          isActive
-                            ? "bg-purple-600 text-white border-purple-600"
-                            : "bg-white text-gray-800 border-gray-200 hover:bg-purple-50 hover:border-purple-300"
-                        }
-                      `}
-                    >
-                      <span className="text-base">{icon}</span>
-                      {label}
-                    </button>
-                  );
-                }
-
                 return (
                   <button
                     key={key}
-                    onClick={() => applyFilter(key)}
+                    onClick={() => {
+                      const { from, to } = getDateRange(key);
+
+                      // ONLY state updates
+                      setActiveQuickFilter(key);
+                      setFromDate(from);
+                      setToDate(to);
+                      setSearch("");
+                      setPage(0);
+
+                      if (key === "month") {
+                        const now = new Date();
+                        setSelectedMonth(now.getMonth());
+                        setSelectedYear(now.getFullYear());
+                      }
+                    }}
                     className={`
                       flex items-center gap-2
                       px-5 py-2
@@ -543,9 +512,9 @@ export default function App() {
                   setSearch("");
                   setPage(0);
 
-                  setTimeout(() => {
-                    fetchExpenses();
-                  }, 0);
+                  const now = new Date();
+                  setSelectedMonth(now.getMonth());
+                  setSelectedYear(now.getFullYear());
                 }}
                 className="
                   flex items-center gap-2

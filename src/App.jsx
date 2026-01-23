@@ -157,17 +157,14 @@ export default function App() {
       if (filterCategory && filterCategory !== "ALL") {
         params.category = filterCategory;
       }
-      if (fromDate) {
-        params.from =
-          typeof fromDate === "string"
-            ? fromDate
-            : new Date(fromDate).toISOString().split("T")[0];
-      }
-      if (toDate) {
-        params.to =
-          typeof toDate === "string"
-            ? toDate
-            : new Date(toDate).toISOString().split("T")[0];
+      // DATE FILTERING — SINGLE SOURCE OF TRUTH
+      if (activeQuickFilter) {
+        const { from, to } = getDateRange(activeQuickFilter);
+        params.from = from;
+        params.to = to;
+      } else {
+        if (fromDate) params.from = fromDate;
+        if (toDate) params.to = toDate;
       }
       const res = await api.get("/expenses/filter", { params });
       setExpenses(Array.isArray(res.data?.content) ? res.data.content : []);
@@ -182,24 +179,11 @@ export default function App() {
   }
 
   function applyQuickFilter(type) {
-    const { from, to } = getDateRange(type);
-
-    // Reset conflicting state FIRST
     setActiveQuickFilter(type);
+    setPage(0);
+    setSearch("");
     setFilterCategory("ALL");
     localStorage.setItem("filterCategory", "ALL");
-    setSearch("");
-    setPage(0);
-
-    // Set dates together
-    setFromDate(from);
-    setToDate(to);
-
-    if (type === "month") {
-      const now = new Date();
-      setSelectedMonth(now.getMonth());
-      setSelectedYear(now.getFullYear());
-    }
   }
 
   function formatLocalDate(date) {
@@ -264,7 +248,7 @@ export default function App() {
 
     deleteTimeoutRef.current = setTimeout(() => {
       setPendingDelete(null);
-      fetchExpenses(); // 🔑 resync after undo window expires
+      //fetchExpenses(); // 🔑 resync after undo window expires
     }, 5000);
   }
 
@@ -301,7 +285,8 @@ export default function App() {
     setExpenses((prev) =>
       prev.filter((e) => !selectedExpenseIds.includes(e.id))
     );
-
+    
+    setPage(0);
     setPendingDelete(toDelete);
 
     deleteTimeoutRef.current = setTimeout(() => {
@@ -528,7 +513,6 @@ export default function App() {
                   setPage(0);
                   setFilterCategory("ALL");
                   localStorage.setItem("filterCategory", "ALL");
-                  // ❌ DO NOT call fetchExpenses here
                 }}
                 className="
                   flex items-center gap-2

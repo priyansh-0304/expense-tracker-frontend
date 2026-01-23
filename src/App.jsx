@@ -93,7 +93,7 @@ export default function App() {
   useEffect(() => {
     if (!authenticated) return;
     fetchExpenses();
-  }, [authenticated, page, filterCategory, sortBy, fromDate, toDate]);
+  }, [authenticated, page, filterCategory, sortBy]);
 
   // Persist filter/sort to localStorage
   useEffect(() => {
@@ -179,6 +179,30 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function applyQuickFilter(type) {
+    const { from, to } = getDateRange(type);
+
+    // Reset conflicting state FIRST
+    setActiveQuickFilter(type);
+    setFilterCategory("ALL");
+    localStorage.setItem("filterCategory", "ALL");
+    setSearch("");
+    setPage(0);
+
+    // Set dates together
+    setFromDate(from);
+    setToDate(to);
+
+    if (type === "month") {
+      const now = new Date();
+      setSelectedMonth(now.getMonth());
+      setSelectedYear(now.getFullYear());
+    }
+
+    // 🔑 fetch ONLY ONCE with final state
+    setTimeout(fetchExpenses, 0);
   }
 
   function getDateRange(type) {
@@ -467,25 +491,7 @@ export default function App() {
                 return (
                   <button
                     key={key}
-                    onClick={() => {
-                      const { from, to } = getDateRange(key);
-
-                      // 🔑 RESET conflicting filters
-                      setFilterCategory("ALL");
-                      localStorage.setItem("filterCategory", "ALL");
-
-                      setActiveQuickFilter(key);
-                      setFromDate(from);
-                      setToDate(to);
-                      setSearch("");
-                      setPage(0);
-
-                      if (key === "month") {
-                        const now = new Date();
-                        setSelectedMonth(now.getMonth());
-                        setSelectedYear(now.getFullYear());
-                      }
-                    }}
+                    onClick={() => applyQuickFilter(key)}
                     className={`
                       flex items-center gap-2
                       px-5 py-2
@@ -514,13 +520,9 @@ export default function App() {
                   setToDate(null);
                   setSearch("");
                   setPage(0);
-
                   setFilterCategory("ALL");
                   localStorage.setItem("filterCategory", "ALL");
-
-                  const now = new Date();
-                  setSelectedMonth(now.getMonth());
-                  setSelectedYear(now.getFullYear());
+                  fetchExpenses();
                 }}
                 className="
                   flex items-center gap-2

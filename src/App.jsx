@@ -460,7 +460,7 @@ export default function App() {
                 { label: "Today", key: "today", icon: "🕒" },
                 { label: "This Week", key: "week", icon: "📅" },
                 { label: "This Month", key: "month", icon: "🗓️" },
-                { label: "Last 30 Days", key: "30days", icon: "📈" }
+                { label: "Last 30 Days", key: "30days", icon: "📈" },
               ].map(({ label, key, icon }) => {
                 const isActive = activeQuickFilter === key;
 
@@ -470,7 +470,10 @@ export default function App() {
                     onClick={() => {
                       const { from, to } = getDateRange(key);
 
-                      // ONLY state updates
+                      // 🔑 RESET conflicting filters
+                      setFilterCategory("ALL");
+                      localStorage.setItem("filterCategory", "ALL");
+
                       setActiveQuickFilter(key);
                       setFromDate(from);
                       setToDate(to);
@@ -511,6 +514,9 @@ export default function App() {
                   setToDate(null);
                   setSearch("");
                   setPage(0);
+
+                  setFilterCategory("ALL");
+                  localStorage.setItem("filterCategory", "ALL");
 
                   const now = new Date();
                   setSelectedMonth(now.getMonth());

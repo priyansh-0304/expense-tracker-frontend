@@ -211,21 +211,40 @@ export default function App() {
 
   // ---- CRUD and analytics fetch triggers ----
   async function addExpense(expense) {
-    const res = await api.post("/expenses", expense);
-    setExpenses((prev) => [res.data, ...prev]);
+    await api.post("/expenses", expense);
+
+    // reset to first page so new expense is visible
+    setPage(0);
+
+    // refetch from backend (filters, sorting stay correct)
+    await fetchExpenses();
   }
 
   async function deleteExpense(id) {
+    const deleted = expenses.find((e) => e.id === id);
+    if (!deleted) return;
+
     await api.delete(`/expenses/${id}`);
+
+    // optimistic UI removal
     setExpenses((prev) => prev.filter((e) => e.id !== id));
+
+    // reuse SAME undo system as bulk delete
+    setPendingDelete([deleted]);
+
+    deleteTimeoutRef.current = setTimeout(() => {
+      setPendingDelete(null);
+      fetchExpenses(); // 🔑 resync after undo window expires
+    }, 5000);
   }
 
   async function updateExpense(expense) {
-    const res = await api.put(`/expenses/${expense.id}`, expense);
-    setExpenses((prev) =>
-      prev.map((e) => (e.id === expense.id ? res.data : e))
-    );
+    await api.put(`/expenses/${expense.id}`, expense);
+
     setEditingExpense(null);
+
+    // refetch to keep charts, insights, pagination in sync
+    await fetchExpenses();
   }
 
   function toggleSelectExpense(id) {
